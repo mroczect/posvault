@@ -43,9 +43,9 @@ pub enum PosVaultError {
     Tree(#[from] TreeError),
 }
 
-impl From<&str> for PosVaultError {
-    fn from(s: &str) -> Self {
-        PosVaultError::InvalidInput(s.to_owned())
+impl PosVaultError {
+    pub fn invalid_input(msg: impl Into<String>) -> Self {
+        PosVaultError::InvalidInput(msg.into())
     }
 }
 

@@ -20,7 +20,8 @@ pub trait Journal: Debug + Send + Sync {
 
 pub trait Signer: Debug + Send + Sync {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>>;
-    fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool>;
+
+    fn verify(&self, data: &[u8], signature: &[u8]) -> bool;
 }
 
 pub trait ConflictResolver: Debug + Send + Sync {
