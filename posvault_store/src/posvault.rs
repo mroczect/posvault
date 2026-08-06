@@ -37,7 +37,7 @@ impl PosVault {
         let tree_hash = hasher.hash_tree_encoded(&buf);
         self.store.put(&tree_hash, &Object::Tree(empty_tree))?;
 
-        let author = UserID::new("system".into(), "posvault".into())?;
+        let author = UserID::new("system".into(), "posvault@internal".into())?;
         let commit = Commit::new(
             tree_hash,
             vec![],
