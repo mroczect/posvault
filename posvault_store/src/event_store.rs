@@ -31,7 +31,7 @@ impl EventStore for VctrlEventStore {
         let old_tree = self.vault.store.get_tree(&head_commit.tree)?;
 
         let entry = TreeEntry::new(
-            format!("events/{}", event.id.as_str()),
+            format!("events-{}", event.id.as_str()),
             EntryKind::Blob,
             blob_hash,
         )?;
