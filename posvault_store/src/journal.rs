@@ -10,11 +10,21 @@ const ARCHIVE_ENTRY_NAME: &str = "journal/archive";
 #[derive(Debug)]
 pub struct VctrlJournal {
     vault: PosVault,
+    compaction_threshold: u64,
 }
 
 impl VctrlJournal {
     pub fn new(vault: PosVault) -> Self {
-        Self { vault }
+        Self {
+            vault,
+            compaction_threshold: JOURNAL_COMPACTION_THRESHOLD,
+        }
+    }
+    pub fn with_threshold(vault: PosVault, threshold: u64) -> Self {
+        Self {
+            vault,
+            compaction_threshold: threshold,
+        }
     }
 
     fn ensure_journal_branch(&mut self) -> Result<Hash> {
@@ -105,7 +115,7 @@ impl VctrlJournal {
             .iter()
             .filter(|e| e.id.as_str() != ARCHIVE_ENTRY_NAME)
             .count();
-        if non_archive_count > JOURNAL_COMPACTION_THRESHOLD as usize {
+        if non_archive_count > self.compaction_threshold as usize {
             self.compact()?;
         }
         Ok(())
