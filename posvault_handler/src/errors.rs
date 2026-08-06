@@ -1,4 +1,4 @@
-use libvctrl::*;
+use libvctrl::domain::tree::TreeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
