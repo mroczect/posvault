@@ -2,8 +2,6 @@ use crate::errors::{PosVaultError, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zeroize::Zeroizing;
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SecretData(Zeroizing<Vec<u8>>);
 
@@ -265,9 +263,9 @@ impl Recipient {
         if !key.starts_with("age1") || key.len() <= 4 {
             return Err(PosVaultError::InvalidInput("Invalid age public key".into()));
         }
-        if !key
+        if !key[4..]
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         {
             return Err(PosVaultError::InvalidInput(
                 "Public key contains invalid characters".into(),
@@ -387,6 +385,9 @@ impl JournalEntry {
         details: String,
         signature: Signature,
     ) -> Result<Self> {
+        if timestamp <= 0 {
+            return Err(PosVaultError::InvalidInput("timestamp must be > 0".into()));
+        }
         if action.is_empty() || action.len() > 256 {
             return Err(PosVaultError::InvalidInput(
                 "Action must be 1..256 chars".into(),
