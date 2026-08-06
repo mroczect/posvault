@@ -1,0 +1,25 @@
+[package]
+name = "posvault"
+version = "0.1.0"
+edition = "2024"
+description = "Encrypted, version-controlled POS database framework"
+license = "MIT"
+repository = "https://github.com/mroczect/posvault"
+readme = "README.md"
+keywords = ["pos", "database", "version-control", "encryption", "event-sourcing"]
+categories = ["database", "cryptography", "development-tools"]
+
+[dependencies]
+posvault_handler = { path = "../posvault_handler" }
+posvault_store = { path = "../posvault_store" }
+posvault_crypto = { path = "../posvault_crypto" }
+posvault_auth = { path = "../posvault_auth" }
+posvault_sign = { path = "../posvault_sign" }
+posvault_sync = { path = "../posvault_sync" }
+posvault_query = { path = "../posvault_query" }
+libvctrl = "0.5"
+age-credentials = "1.0"
+ed25519-dalek = { version = "3", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3"

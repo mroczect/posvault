@@ -1,6 +1,6 @@
 .PHONY: all build release check test test-verbose fmt fmt-check clippy lint clean run install uninstall ci rebuild snap doc doc-open bench update audit publish-check publish-all version coverage watch-test watch-build help
 
-MEMBERS = posvault_handler posvault_store posvault_crypto posvault_auth posvault_sign posvault_sync posvault_query
+MEMBERS = posvault_handler posvault_store posvault_crypto posvault_auth posvault_sign posvault_sync posvault_query posvault
 SNAPCAT    = snapcat
 SNAPCAT_OPTS =
 CARGO      = cargo

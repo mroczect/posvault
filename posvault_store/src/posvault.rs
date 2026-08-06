@@ -1,30 +1,37 @@
 use libvctrl::*;
 use posvault_handler::errors::{PosVaultError, Result};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct PosVault {
     pub store: FileStore,
+    pub path: PathBuf,
 }
 
 impl fmt::Debug for PosVault {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PosVault")
             .field("store", &"FileStore { .. }")
+            .field("path", &self.path)
             .finish()
     }
 }
 
 impl PosVault {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
+        let path = path.as_ref().to_path_buf();
+        std::fs::create_dir_all(&path).map_err(|e| PosVaultError::Storage(e.to_string()))?;
         let store = FileStore::open(path.join("store.vctrl"))
             .map_err(|e| PosVaultError::Storage(e.to_string()))?;
-        let mut vault = PosVault { store };
+        let mut vault = PosVault { store, path };
         if vault.store.head_ref_name()?.is_none() {
             vault.init()?;
         }
         Ok(vault)
+    }
+
+    pub fn clone_store(&self) -> Result<Self> {
+        Self::open(&self.path)
     }
 
     fn init(&mut self) -> Result<()> {

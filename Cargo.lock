@@ -1424,6 +1424,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "posvault"
+version = "0.1.0"
+dependencies = [
+ "age-credentials",
+ "ed25519-dalek",
+ "libvctrl",
+ "posvault_auth",
+ "posvault_crypto",
+ "posvault_handler",
+ "posvault_query",
+ "posvault_sign",
+ "posvault_store",
+ "posvault_sync",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "posvault_auth"
 version = "0.1.0"
 dependencies = [
