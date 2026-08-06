@@ -1,130 +1,208 @@
-.PHONY: all build release check test test-verbose fmt fmt-check clippy lint clean run install uninstall ci rebuild snap doc doc-open bench update audit publish-check publish-all version coverage watch-test watch-build help
+SHELL = /bin/bash
+.SHELLFLAGS = -euo pipefail -c
 
-MEMBERS = posvault_handler posvault_store posvault_crypto posvault_auth posvault_sign posvault_sync posvault_query posvault
-SNAPCAT    = snapcat
-SNAPCAT_OPTS =
-CARGO      = cargo
-RUSTC      = rustc
-NIGHTLY    = nightly
+CARGO   = cargo
+MEMBERS = posvault_handler posvault_store posvault_crypto posvault_auth \
+          posvault_sign posvault_sync posvault_query posvault
 
+.PHONY: all
 all: build
 
-help: 
-	@printf "Usage:\n"
-	@printf "  make <target>\n\n"
-	@printf "Targets:\n"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+.PHONY: help
+help:
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Targets:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
 
-build: 
-	$(CARGO) build
-
-release: 
-	$(CARGO) build --release
-
-check: 
-	$(CARGO) check --workspace
-
-test: 
-	$(CARGO) test --workspace
-
-test-verbose: 
-	$(CARGO) test --workspace -- --nocapture
-
-watch-test: 
-	$(CARGO) watch -x 'test --workspace'
-
-watch-build: 
-	$(CARGO) watch -x 'check --workspace'
-
-fmt: 
-	$(CARGO) fmt --all
-
-fmt-check: 
-	$(CARGO) fmt --all -- --check
-
-clippy: 
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
-
-lint: fmt clippy 
-
-ci: fmt-check clippy test-verbose
-
-clean: 
-	$(CARGO) clean
-
-run: 
-	$(CARGO) run
-
-install: 
-	$(CARGO) install --path .
-
-uninstall: 
-	$(CARGO) uninstall jsscli
-
-rebuild: release install 
-
-snap: 
-	mkdir -p dev
-	@for dir in $(MEMBERS); do \
-		if [ -d "$$dir" ]; then \
-			echo "📸 $$dir"; \
-			$(SNAPCAT) $$dir -f markdown $(SNAPCAT_OPTS) -o dev/$$dir.src.snapcat.md; \
-		fi; \
-		if [ -d "$$dir/tests" ]; then \
-			echo "📸 $$dir/tests"; \
-			$(SNAPCAT) $$dir/tests -f markdown $(SNAPCAT_OPTS) -o dev/$$dir.tests.snapcat.md; \
+.PHONY: init-readmes
+init-readmes:
+	@for crate in $(MEMBERS); do \
+		if [ -d "$$crate" ]; then \
+			readme="$$crate/README.md"; \
+			if [ ! -f "$$readme" ]; then \
+				echo "Creating $$readme"; \
+				echo "# $$crate\n\nPart of the posvault workspace.\n\nSee [README](../README.md) for full documentation." > "$$readme"; \
+			else \
+				echo "$$readme already exists"; \
+			fi; \
+		else \
+			echo "ERROR: Folder $$crate not found"; \
+			exit 1; \
 		fi; \
 	done
-	@echo "Merging all snapshots into dev/root.md"
-	cat dev/*.snapcat.md > dev/root.md
-	@echo "Done. See dev/root.md"
 
-doc: 
+.PHONY: check-readmes
+check-readmes:
+	@missing=0; \
+	for crate in $(MEMBERS); do \
+		if [ ! -f "$$crate/README.md" ]; then \
+			echo "MISSING: $$crate/README.md"; \
+			missing=$$((missing + 1)); \
+		fi; \
+	done; \
+	if [ $$missing -gt 0 ]; then \
+		echo "ERROR: $$missing README files missing. Run 'make init-readmes'"; \
+		exit 1; \
+	else \
+		echo "All READMEs present."; \
+	fi
+
+.PHONY: build
+build:
+	$(CARGO) build --workspace
+
+.PHONY: release
+release:
+	$(CARGO) build --release --workspace
+
+.PHONY: check
+check:
+	$(CARGO) check --workspace
+
+.PHONY: test
+test:
+	$(CARGO) test --workspace
+
+.PHONY: test-verbose
+test-verbose:
+	RUST_BACKTRACE=1 $(CARGO) test --workspace -- --nocapture
+
+.PHONY: watch-test
+watch-test:
+	$(CARGO) watch -x 'test --workspace'
+
+.PHONY: watch-build
+watch-build:
+	$(CARGO) watch -x 'check --workspace'
+
+.PHONY: fmt
+fmt:
+	$(CARGO) fmt --all
+
+.PHONY: fmt-check
+fmt-check:
+	$(CARGO) fmt --all -- --check
+
+.PHONY: clippy
+clippy:
+	$(CARGO) clippy --all-targets --all-features -- -D warnings
+
+.PHONY: lint
+lint: fmt clippy
+
+.PHONY: ci
+ci: fmt-check clippy test-verbose
+
+.PHONY: clean
+clean:
+	$(CARGO) clean
+
+.PHONY: doc
+doc:
 	$(CARGO) doc --workspace --no-deps
 
-doc-open: doc 
+.PHONY: doc-open
+doc-open: doc
 	$(CARGO) doc --workspace --no-deps --open
 
-bench: 
+.PHONY: bench
+bench:
 	$(CARGO) bench --workspace
 
-update: 
+.PHONY: update
+update:
 	$(CARGO) update
 
-audit: 
+.PHONY: audit
+audit:
 	@if command -v cargo-audit >/dev/null 2>&1; then \
 		$(CARGO) audit; \
 	else \
 		echo "cargo-audit not installed. Run: cargo install cargo-audit"; \
 	fi
 
-publish-check: 
-	@for member in $(MEMBERS); do \
-		echo "👉 Packaging $$member"; \
-		$(CARGO) package -p $$member --no-verify || exit 1; \
+.PHONY: publish-check
+publish-check: check-readmes
+	@for crate in $(MEMBERS); do \
+		echo "Packaging $$crate"; \
+		$(CARGO) package -p "$$crate" --no-verify || exit 1; \
 	done
+	@echo "All crates are ready for publish."
 
-publish-all:
-	cargo publish -p libage_auth_handler
-	sleep 10
-	cargo publish -p libage_crypto
-	sleep 10
-	cargo publish -p libage_otp
-	sleep 10
-	cargo publish -p libage_authenticator
-	sleep 10
-	cargo publish -p age_auth
+.PHONY: publish-all
+publish-all: check-readmes
+	@echo "Publishing posvault_handler ..."
+	$(CARGO) publish -p posvault_handler
+	@sleep 5
+	@echo "Publishing posvault_store ..."
+	$(CARGO) publish -p posvault_store
+	@sleep 5
+	@echo "Publishing posvault_crypto ..."
+	$(CARGO) publish -p posvault_crypto
+	@sleep 5
+	@echo "Publishing posvault_auth ..."
+	$(CARGO) publish -p posvault_auth
+	@sleep 5
+	@echo "Publishing posvault_sign ..."
+	$(CARGO) publish -p posvault_sign
+	@sleep 5
+	@echo "Publishing posvault_query ..."
+	$(CARGO) publish -p posvault_query
+	@sleep 5
+	@echo "Publishing posvault_sync ..."
+	$(CARGO) publish -p posvault_sync
+	@sleep 5
+	@echo "Publishing posvault (root) ..."
+	$(CARGO) publish -p posvault
+	@echo "All crates published successfully."
 
-version: 
+.PHONY: coverage
+coverage:
+	$(CARGO) llvm-cov --workspace --html
+	@echo "Coverage report: target/llvm-cov/html/index.html"
+
+.PHONY: version
+version:
 	@if [ -z "$(V)" ]; then \
 		echo "Usage: make version V=<major|minor|patch|X.Y.Z>"; \
 		exit 1; \
 	fi
+	@if [ ! -x "dev/version_bump.sh" ]; then \
+		echo "ERROR: dev/version_bump.sh not found or not executable"; \
+		exit 1; \
+	fi
 	dev/version_bump.sh $(V)
 
-coverage: 
-	$(CARGO) llvm-cov --workspace --html
-	@echo "Coverage report written to target/llvm-cov/html/index.html"
+.PHONY: snap
+snap:
+	mkdir -p dev
+	@for crate in $(MEMBERS); do \
+		if [ -d "$$crate" ]; then \
+			echo "Snapping $$crate/src"; \
+			snapcat "$$crate/src" -f markdown -o "dev/$$crate.src.snapcat.md" || true; \
+		fi; \
+		if [ -d "$$crate/tests" ]; then \
+			echo "Snapping $$crate/tests"; \
+			snapcat "$$crate/tests" -f markdown -o "dev/$$crate.tests.snapcat.md" || true; \
+		fi; \
+	done
+	@echo "Merging all snapshots into dev/root.md"
+	cat dev/*.snapcat.md > dev/root.md 2>/dev/null || true
+	@echo "Done. See dev/root.md"
 
-test-verbose: 
-	RUST_BACKTRACE=1 $(CARGO) test --workspace -- --nocapture
+.PHONY: run
+run:
+	$(CARGO) run
+
+.PHONY: install
+install:
+	$(CARGO) install --path .
+
+.PHONY: uninstall
+uninstall:
+	$(CARGO) uninstall posvault || true
+
+.PHONY: rebuild
+rebuild: release install
