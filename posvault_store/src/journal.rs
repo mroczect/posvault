@@ -43,7 +43,7 @@ impl VctrlJournal {
             .store
             .put(&tree_hash, &Object::Tree(empty_tree))?;
 
-        let user = UserID::new("system".into(), "journal".into())?;
+        let user = UserID::new("system".into(), "journal@internal".into())?;
         let commit = Commit::new(
             tree_hash,
             vec![],
@@ -90,7 +90,7 @@ impl VctrlJournal {
         } else {
             vec![]
         };
-        let user = UserID::new("system".into(), "compaction".into())?;
+        let user = UserID::new("system".into(), "compaction@internal".into())?;
         let commit = Commit::new(
             new_tree_hash,
             parents,
@@ -153,7 +153,10 @@ impl Journal for VctrlJournal {
             .store
             .put(&new_tree_hash, &Object::Tree(new_tree))?;
 
-        let user = UserID::new(entry.author.fingerprint.as_str().to_string(), String::new())?;
+        let user = UserID::new(
+            entry.author.fingerprint.as_str().to_string(),
+            "journal@internal".into(),
+        )?;
         let commit = Commit::new(
             new_tree_hash,
             vec![current_commit],
@@ -189,7 +192,7 @@ impl Journal for VctrlJournal {
                 let archived: Vec<JournalEntry> = serde_json::from_slice(&blob)
                     .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
                 entries.extend(archived);
-            } else if entry.name.starts_with("journal/") && entry.kind == EntryKind::Blob {
+            } else if entry.name.starts_with("journal-") && entry.kind == EntryKind::Blob {
                 let blob = self.vault.store.get_blob(&entry.hash)?;
                 let je: JournalEntry = serde_json::from_slice(&blob)
                     .map_err(|e| PosVaultError::Serialization(e.to_string()))?;

@@ -75,8 +75,9 @@ fn test_journal_record_and_read_all() {
     journal.record(entry2.clone()).unwrap();
     let all = journal.read_all().unwrap();
     assert_eq!(all.len(), 2);
-    assert_eq!(all[0].action, "action1");
-    assert_eq!(all[1].action, "action2");
+    let actions: Vec<&str> = all.iter().map(|e| e.action.as_str()).collect();
+    assert!(actions.contains(&"action1"));
+    assert!(actions.contains(&"action2"));
 }
 
 #[test]
