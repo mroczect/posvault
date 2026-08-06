@@ -1,12 +1,6 @@
 use crate::posvault::PosVault;
-use libvctrl::codec::{BinaryEncoder, Encoder};
-use libvctrl::command::Command;
-use libvctrl::domain::object::Object;
-use libvctrl::domain::tree::{EntryKind, TreeEntry};
-use libvctrl::hashing::{Hasher, Sha512Hasher};
-use libvctrl::storage::file_store::FileStore;
-use libvctrl::storage::traits::{ObjectStore, ObjectStoreExt, RefStore};
-use posvault_handler::errors::Result;
+use libvctrl::*;
+use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::Journal;
 use posvault_handler::types::JournalEntry;
 
@@ -20,52 +14,38 @@ impl VctrlJournal {
         Self { vault }
     }
 
-    fn ensure_journal_branch(&mut self) -> Result<libvctrl::domain::hash::Hash> {
+    fn ensure_journal_branch(&mut self) -> Result<Hash> {
         let journal_ref = "refs/journal";
-        if let Some(hash) = self
-            .vault
-            .store
-            .get_ref(journal_ref)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?
-        {
+        if let Some(hash) = self.vault.store.get_ref(journal_ref)? {
             return Ok(hash);
         }
         let encoder = BinaryEncoder;
         let hasher = Sha512Hasher;
 
-        let empty_tree = libvctrl::domain::tree::Tree::new(vec![])
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let empty_tree = Tree::new(vec![])?;
         let mut buf = Vec::new();
-        encoder
-            .encode_tree(&empty_tree, &mut buf)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        encoder.encode_tree(&empty_tree, &mut buf)?;
         let tree_hash = hasher.hash_tree_encoded(&buf);
         self.vault
             .store
-            .put(&tree_hash, &Object::Tree(empty_tree))
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
-        let user = libvctrl::domain::user::UserID::new("system".into(), "journal".into())
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
-        let commit_cmd = libvctrl::command::create_commit::CreateCommit {
-            tree_hash,
-            parents: vec![],
-            author: user.clone(),
-            committer: user,
-            message: "initialize journal".into(),
-            encoder: Box::new(BinaryEncoder),
-            hasher: Box::new(Sha512Hasher),
-        };
+            .put(&tree_hash, &Object::Tree(empty_tree))?;
 
-        let store_ptr = &mut self.vault.store as *mut FileStore;
-        let store_ref = unsafe { &mut *store_ptr as &mut dyn ObjectStore };
-        let refs_ref = unsafe { &mut *store_ptr as &mut dyn RefStore };
-        let commit_hash = commit_cmd
-            .execute(store_ref, refs_ref)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let user = UserID::new("system".into(), "journal".into())?;
+        let commit = Commit::new(
+            tree_hash,
+            vec![],
+            user.clone(),
+            user,
+            "initialize journal".into(),
+            None,
+        );
+        let mut buf = Vec::new();
+        encoder.encode_commit(&commit, &mut buf)?;
+        let commit_hash = hasher.hash_commit_encoded(&buf);
         self.vault
             .store
-            .set_ref(journal_ref, &commit_hash)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+            .put(&commit_hash, &Object::Commit(Box::new(commit)))?;
+        self.vault.store.set_ref(journal_ref, &commit_hash)?;
         Ok(commit_hash)
     }
 }
@@ -76,106 +56,64 @@ impl Journal for VctrlJournal {
         let hasher = Sha512Hasher;
 
         let current_commit = self.ensure_journal_branch()?;
-        let commit = self
-            .vault
-            .store
-            .get_commit(&current_commit)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
-        let old_tree = self
-            .vault
-            .store
-            .get_tree(&commit.tree)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let commit = self.vault.store.get_commit(&current_commit)?;
+        let old_tree = self.vault.store.get_tree(&commit.tree)?;
 
-        let entry_bytes = serde_json::to_vec(&entry)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Serialization(e.to_string()))?;
-        let blob = libvctrl::domain::blob::Blob::new(entry_bytes);
+        let entry_bytes =
+            serde_json::to_vec(&entry).map_err(|e| PosVaultError::Serialization(e.to_string()))?;
+        let blob = Blob::new(entry_bytes);
         let blob_hash = hasher.hash_blob(blob.as_bytes());
-        self.vault
-            .store
-            .put(&blob_hash, &Object::Blob(blob))
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        self.vault.store.put(&blob_hash, &Object::Blob(blob))?;
 
         let tree_entry = TreeEntry::new(
             format!("journal/{}", entry.id.as_str()),
             EntryKind::Blob,
             blob_hash,
-        )
-        .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        )?;
 
         let mut entries: Vec<TreeEntry> = old_tree.entries().to_vec();
         entries.push(tree_entry);
-        let new_tree = libvctrl::domain::tree::Tree::new(entries)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let new_tree = Tree::new(entries)?;
         let mut buf = Vec::new();
-        encoder
-            .encode_tree(&new_tree, &mut buf)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        encoder.encode_tree(&new_tree, &mut buf)?;
         let new_tree_hash = hasher.hash_tree_encoded(&buf);
         self.vault
             .store
-            .put(&new_tree_hash, &Object::Tree(new_tree))
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+            .put(&new_tree_hash, &Object::Tree(new_tree))?;
 
-        let user = libvctrl::domain::user::UserID::new(
-            entry.author.fingerprint.as_str().to_string(),
-            String::new(),
-        )
-        .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
-        let commit_cmd = libvctrl::command::create_commit::CreateCommit {
-            tree_hash: new_tree_hash,
-            parents: vec![current_commit],
-            author: user.clone(),
-            committer: user,
-            message: entry.action.clone(),
-            encoder: Box::new(BinaryEncoder),
-            hasher: Box::new(Sha512Hasher),
-        };
-
-        let store_ptr = &mut self.vault.store as *mut FileStore;
-        let store_ref = unsafe { &mut *store_ptr as &mut dyn ObjectStore };
-        let refs_ref = unsafe { &mut *store_ptr as &mut dyn RefStore };
-        let new_commit = commit_cmd
-            .execute(store_ref, refs_ref)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let user = UserID::new(entry.author.fingerprint.as_str().to_string(), String::new())?;
+        let commit = Commit::new(
+            new_tree_hash,
+            vec![current_commit],
+            user.clone(),
+            user,
+            entry.action.clone(),
+            None,
+        );
+        let mut buf = Vec::new();
+        encoder.encode_commit(&commit, &mut buf)?;
+        let new_commit = hasher.hash_commit_encoded(&buf);
         self.vault
             .store
-            .set_ref("refs/journal", &new_commit)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+            .put(&new_commit, &Object::Commit(Box::new(commit)))?;
+        self.vault.store.set_ref("refs/journal", &new_commit)?;
         Ok(())
     }
 
     fn read_all(&self) -> Result<Vec<JournalEntry>> {
         let journal_ref = "refs/journal";
-        let commit_hash = match self
-            .vault
-            .store
-            .get_ref(journal_ref)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?
-        {
+        let commit_hash = match self.vault.store.get_ref(journal_ref)? {
             Some(h) => h,
             None => return Ok(vec![]),
         };
-        let commit = self
-            .vault
-            .store
-            .get_commit(&commit_hash)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
-        let tree = self
-            .vault
-            .store
-            .get_tree(&commit.tree)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Storage(e.to_string()))?;
+        let commit = self.vault.store.get_commit(&commit_hash)?;
+        let tree = self.vault.store.get_tree(&commit.tree)?;
         let mut entries = Vec::new();
         for entry in tree.entries() {
             if entry.name.starts_with("journal/") && entry.kind == EntryKind::Blob {
-                let blob =
-                    self.vault.store.get_blob(&entry.hash).map_err(|e| {
-                        posvault_handler::errors::PosVaultError::Storage(e.to_string())
-                    })?;
-                let je: JournalEntry = serde_json::from_slice(&blob).map_err(|e| {
-                    posvault_handler::errors::PosVaultError::Serialization(e.to_string())
-                })?;
+                let blob = self.vault.store.get_blob(&entry.hash)?;
+                let je: JournalEntry = serde_json::from_slice(&blob)
+                    .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
                 entries.push(je);
             }
         }
