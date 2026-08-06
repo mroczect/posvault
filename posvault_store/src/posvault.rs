@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::Path;
 
 pub struct PosVault {
-    pub(crate) store: FileStore,
+    pub store: FileStore,
 }
 
 impl fmt::Debug for PosVault {

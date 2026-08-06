@@ -1494,6 +1494,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "posvault_sync"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "libvctrl",
+ "posvault_handler",
+ "posvault_store",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
