@@ -1,5 +1,6 @@
 pub const DEFAULT_RECIPIENTS_COUNT: usize = 2;
 
+#[allow(dead_code)]
 pub const SIGNATURE_ALGORITHM: &str = "ed25519";
 
 pub const JOURNAL_COMPACTION_THRESHOLD: u64 = 100_000;
