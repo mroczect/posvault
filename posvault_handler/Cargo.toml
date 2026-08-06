@@ -1,0 +1,22 @@
+[package]
+name = "posvault_handler"
+version = "0.1.0"
+edition = "2024"
+description = "Core traits, error types, and validated wrappers for the posvault workspace"
+authors = ["mroczect <mroczect@proton.me>"]
+license = "MIT"
+repository = "https://github.com/mroczect/posvault"
+readme = "README.md"
+keywords = ["pos", "database", "handler", "traits", "validation"]
+categories = ["database", "cryptography"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+zeroize = { version = "1.9", features = ["zeroize_derive", "serde"] }
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+sha2 = "0.11"
+ed25519-dalek = { version = "3", features = ["serde"] }
+csv = "1.4"
