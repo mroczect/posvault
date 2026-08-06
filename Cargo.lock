@@ -369,6 +369,7 @@ dependencies = [
  "csv",
  "ed25519-dalek",
  "hex",
+ "libvctrl",
  "serde",
  "sha2",
  "thiserror",
