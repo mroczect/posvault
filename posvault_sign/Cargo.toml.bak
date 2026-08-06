@@ -1,13 +1,13 @@
 [package]
 name = "posvault_sign"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2024"
 description = "Ed25519 digital signatures for posvault events and journal"
 license = "MIT"
 repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
-posvault_handler = { path = "../posvault_handler", version = "0.2.0" }
+posvault_handler = { path = "../posvault_handler", version = "0.1.0" }
 ed25519-dalek = { version = "3", features = ["serde"] }
 rand = "0.8"
 zeroize = "1.9"

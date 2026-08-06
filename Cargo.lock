@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "posvault"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "age-credentials",
  "ed25519-dalek",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_auth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "age-credentials",
  "age_auth",
@@ -1458,7 +1458,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_crypto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "age",
  "librage",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_handler"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "csv",
@@ -1486,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_query"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "posvault_handler",
  "posvault_store",
@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_sign"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ed25519-dalek",
  "posvault_handler",
@@ -1508,7 +1508,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "hex",
@@ -1525,7 +1525,7 @@ dependencies = [
 
 [[package]]
 name = "posvault_sync"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "libvctrl",
