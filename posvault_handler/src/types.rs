@@ -1,15 +1,18 @@
 use crate::errors::{PosVaultError, Result};
+use crate::validation::Validate;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zeroize::Zeroizing;
 
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SecretData(Zeroizing<Vec<u8>>);
 
 impl SecretData {
     pub fn new(data: Vec<u8>) -> Result<Self> {
         if data.is_empty() {
-            return Err(PosVaultError::InvalidInput(
-                "SecretData cannot be empty".into(),
+            return Err(PosVaultError::invalid_input(
+                "SecretData tidak boleh kosong",
             ));
         }
         Ok(SecretData(Zeroizing::new(data)))
@@ -17,6 +20,16 @@ impl SecretData {
 
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    pub fn to_hex(&self) -> String {
+        hex::encode(&self.0)
+    }
+
+    pub fn from_hex(hex_str: &str) -> Result<Self> {
+        let bytes =
+            hex::decode(hex_str).map_err(|_| PosVaultError::invalid_input("hex tidak valid"))?;
+        SecretData::new(bytes)
     }
 }
 
@@ -31,51 +44,7 @@ impl PartialEq for SecretData {
         *self.0 == *other.0
     }
 }
-
 impl Eq for SecretData {}
-
-impl Serialize for SecretData {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for SecretData {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
-        SecretData::new(bytes).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Event {
-    pub id: EventId,
-    pub timestamp: i64,
-    pub author: Identity,
-    pub payload: EncryptedPayload,
-    pub signature: Signature,
-}
-
-impl Event {
-    pub fn new(
-        id: EventId,
-        timestamp: i64,
-        author: Identity,
-        payload: EncryptedPayload,
-        signature: Signature,
-    ) -> Result<Self> {
-        if timestamp <= 0 {
-            return Err(PosVaultError::InvalidInput("timestamp must be > 0".into()));
-        }
-        Ok(Event {
-            id,
-            timestamp,
-            author,
-            payload,
-            signature,
-        })
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EventId(String);
@@ -84,36 +53,23 @@ impl EventId {
     pub fn new(id: impl Into<String>) -> Result<Self> {
         let id = id.into();
         if id.is_empty() || id.len() > 64 {
-            return Err(PosVaultError::InvalidInput(
-                "EventId must be 1..64 chars".into(),
-            ));
+            return Err(PosVaultError::invalid_input("EventId harus 1..64 karakter"));
         }
         if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(PosVaultError::InvalidInput(
-                "EventId must be alphanumeric + hyphens".into(),
+            return Err(PosVaultError::invalid_input(
+                "EventId hanya boleh alfanumerik + '-'",
             ));
         }
         Ok(EventId(id))
     }
 
     pub fn generate() -> Self {
-        EventId(uuid::Uuid::new_v4().to_string())
+        let id = uuid::Uuid::new_v4().to_string();
+        EventId::new(id).expect("UUID v4 harus selalu valid untuk EventId")
     }
 
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Identity {
-    pub fingerprint: Fingerprint,
-    pub role: Role,
-}
-
-impl Identity {
-    pub fn new(fingerprint: Fingerprint, role: Role) -> Self {
-        Identity { fingerprint, role }
     }
 }
 
@@ -123,14 +79,9 @@ pub struct Fingerprint(String);
 impl Fingerprint {
     pub fn new(hex: impl Into<String>) -> Result<Self> {
         let hex = hex.into();
-        if hex.len() != 64 {
-            return Err(PosVaultError::InvalidInput(
-                "Fingerprint must be 64 hex chars".into(),
-            ));
-        }
-        if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(PosVaultError::InvalidInput(
-                "Fingerprint must be hexadecimal".into(),
+        if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(PosVaultError::invalid_input(
+                "Fingerprint harus 64 hex karakter",
             ));
         }
         Ok(Fingerprint(hex))
@@ -164,15 +115,25 @@ impl Role {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Identity {
+    pub fingerprint: Fingerprint,
+    pub role: Role,
+}
+
+impl Identity {
+    pub fn new(fingerprint: Fingerprint, role: Role) -> Self {
+        Identity { fingerprint, role }
+    }
+}
+
 #[derive(Clone)]
 pub struct Signature(Zeroizing<Vec<u8>>);
 
 impl Signature {
     pub fn new(bytes: Vec<u8>) -> Result<Self> {
         if bytes.len() != 64 {
-            return Err(PosVaultError::InvalidInput(
-                "Signature must be 64 bytes".into(),
-            ));
+            return Err(PosVaultError::invalid_input("Signature harus 64 bytes"));
         }
         Ok(Signature(Zeroizing::new(bytes)))
     }
@@ -193,7 +154,6 @@ impl PartialEq for Signature {
         *self.0 == *other.0
     }
 }
-
 impl Eq for Signature {}
 
 impl Serialize for Signature {
@@ -215,8 +175,8 @@ pub struct EncryptedPayload(Zeroizing<Vec<u8>>);
 impl EncryptedPayload {
     pub fn new(data: Vec<u8>) -> Result<Self> {
         if data.is_empty() {
-            return Err(PosVaultError::InvalidInput(
-                "EncryptedPayload cannot be empty".into(),
+            return Err(PosVaultError::invalid_input(
+                "EncryptedPayload tidak boleh kosong",
             ));
         }
         Ok(EncryptedPayload(Zeroizing::new(data)))
@@ -238,7 +198,6 @@ impl PartialEq for EncryptedPayload {
         *self.0 == *other.0
     }
 }
-
 impl Eq for EncryptedPayload {}
 
 impl Serialize for EncryptedPayload {
@@ -254,21 +213,53 @@ impl<'de> Deserialize<'de> for EncryptedPayload {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Event {
+    pub id: EventId,
+    pub timestamp: i64,
+    pub author: Identity,
+    pub payload: EncryptedPayload,
+    pub signature: Signature,
+}
+
+impl Event {
+    pub fn new(
+        id: EventId,
+        timestamp: i64,
+        author: Identity,
+        payload: EncryptedPayload,
+        signature: Signature,
+    ) -> Result<Self> {
+        let event = Event {
+            id,
+            timestamp,
+            author,
+            payload,
+            signature,
+        };
+        event.validate()?;
+        Ok(event)
+    }
+}
+
+impl Validate for Event {
+    fn validate(&self) -> Result<()> {
+        if self.timestamp <= 0 {
+            return Err(PosVaultError::invalid_input("timestamp harus > 0"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recipient(String);
 
 impl Recipient {
     pub fn new(key: impl Into<String>) -> Result<Self> {
         let key = key.into();
-        if !key.starts_with("age1") || key.len() <= 4 {
-            return Err(PosVaultError::InvalidInput("Invalid age public key".into()));
-        }
-        if !key[4..]
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        {
-            return Err(PosVaultError::InvalidInput(
-                "Public key contains invalid characters".into(),
+        if !key.starts_with("age1") || key.len() <= 4 || key.len() > 512 {
+            return Err(PosVaultError::invalid_input(
+                "Kunci publik age tidak valid (prefix atau panjang)",
             ));
         }
         Ok(Recipient(key))
@@ -286,16 +277,16 @@ impl BranchName {
     pub fn new(name: impl Into<String>) -> Result<Self> {
         let name = name.into();
         if name.is_empty() || name.len() > 255 {
-            return Err(PosVaultError::InvalidInput(
-                "Branch name must be 1..255 chars".into(),
+            return Err(PosVaultError::invalid_input(
+                "Nama branch harus 1..255 karakter",
             ));
         }
         if !name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/')
         {
-            return Err(PosVaultError::InvalidInput(
-                "Branch name has invalid chars".into(),
+            return Err(PosVaultError::invalid_input(
+                "Nama branch mengandung karakter tidak valid",
             ));
         }
         Ok(BranchName(name))
@@ -316,11 +307,9 @@ impl CommitHash {
 
     pub fn from_hex(hex_str: &str) -> Result<Self> {
         let bytes =
-            hex::decode(hex_str).map_err(|_| PosVaultError::InvalidInput("Invalid hex".into()))?;
+            hex::decode(hex_str).map_err(|_| PosVaultError::invalid_input("hex tidak valid"))?;
         if bytes.len() != 64 {
-            return Err(PosVaultError::InvalidInput(
-                "Commit hash must be 64 bytes".into(),
-            ));
+            return Err(PosVaultError::invalid_input("Commit hash harus 64 bytes"));
         }
         let mut arr = [0u8; 64];
         arr.copy_from_slice(&bytes);
@@ -333,6 +322,10 @@ impl CommitHash {
 
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.0.iter().all(|&b| b == 0)
     }
 }
 
@@ -357,12 +350,26 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new(version: u64, data: EncryptedPayload, hash: CommitHash) -> Self {
-        Snapshot {
+    pub fn new(version: u64, data: EncryptedPayload, hash: CommitHash) -> Result<Self> {
+        let snap = Snapshot {
             version,
             data,
             hash,
+        };
+        snap.validate()?;
+        Ok(snap)
+    }
+}
+
+impl Validate for Snapshot {
+    fn validate(&self) -> Result<()> {
+        if self.version == 0 {
+            return Err(PosVaultError::invalid_input("Versi snapshot harus > 0"));
         }
+        if self.hash.is_zero() {
+            return Err(PosVaultError::invalid_input("Commit hash tidak boleh nol"));
+        }
+        Ok(())
     }
 }
 
@@ -385,21 +392,55 @@ impl JournalEntry {
         details: String,
         signature: Signature,
     ) -> Result<Self> {
-        if timestamp <= 0 {
-            return Err(PosVaultError::InvalidInput("timestamp must be > 0".into()));
-        }
-        if action.is_empty() || action.len() > 256 {
-            return Err(PosVaultError::InvalidInput(
-                "Action must be 1..256 chars".into(),
-            ));
-        }
-        Ok(JournalEntry {
+        let entry = JournalEntry {
             id,
             timestamp,
             action,
             author,
             details,
             signature,
-        })
+        };
+        entry.validate()?;
+        Ok(entry)
+    }
+}
+
+impl Validate for JournalEntry {
+    fn validate(&self) -> Result<()> {
+        if self.timestamp <= 0 {
+            return Err(PosVaultError::invalid_input("timestamp harus > 0"));
+        }
+        if self.action.is_empty() || self.action.len() > 256 {
+            return Err(PosVaultError::invalid_input("Action harus 1..256 karakter"));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_id_generate_always_valid() {
+        for _ in 0..100 {
+            let id = EventId::generate();
+            assert!(EventId::new(id.as_str()).is_ok());
+        }
+    }
+
+    #[test]
+    fn recipient_allows_valid_age_keys() {
+        assert!(
+            Recipient::new("age1yt4hxqdqp2vt0zr0h6z6f0g4f6z5x5p6xjxpyf6v7z6qk8w0e3srs9m0j").is_ok()
+        );
+        assert!(Recipient::new("abc123").is_err());
+    }
+
+    #[test]
+    fn snapshot_rejects_zero_hash() {
+        let payload = EncryptedPayload::new(vec![1, 2, 3]).unwrap();
+        let hash = CommitHash::from_bytes([0u8; 64]);
+        assert!(Snapshot::new(1, payload, hash).is_err());
     }
 }
