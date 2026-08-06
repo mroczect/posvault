@@ -5,7 +5,7 @@ use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::Journal;
 use posvault_handler::types::JournalEntry;
 
-const ARCHIVE_ENTRY_NAME: &str = "journal/archive";
+const ARCHIVE_ENTRY_NAME: &str = "journal-archive";
 
 #[derive(Debug)]
 pub struct VctrlJournal {
@@ -138,7 +138,7 @@ impl Journal for VctrlJournal {
         self.vault.store.put(&blob_hash, &Object::Blob(blob))?;
 
         let tree_entry = TreeEntry::new(
-            format!("journal/{}", entry.id.as_str()),
+            format!("journal-{}", entry.id.as_str()),
             EntryKind::Blob,
             blob_hash,
         )?;

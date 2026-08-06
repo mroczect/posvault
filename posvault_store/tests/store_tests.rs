@@ -34,9 +34,9 @@ fn test_get_events_since_not_implemented() {
 fn test_append_multiple_events_increases_checkpoint() {
     let (_dir, vault) = setup_vault();
     let mut store = VctrlEventStore::new(vault);
-    for i in 0..5 {
+    for i in 1..6 {
         store
-            .append_event(create_test_event(i as i64, Role::Cashier))
+            .append_event(create_test_event(i, Role::Cashier))
             .unwrap();
     }
     assert_eq!(store.latest_checkpoint().unwrap(), 5);
@@ -105,13 +105,13 @@ fn create_test_event(timestamp: i64, role: Role) -> Event {
     let author = Identity::new(fingerprint, role);
     let payload = EncryptedPayload::new(b"test payload".to_vec()).unwrap();
     let signature = Signature::new(vec![0u8; 64]).unwrap();
-    Event::new(id, timestamp, author, payload, signature).unwrap()
+    Event::new(id, timestamp.max(1), author, payload, signature).unwrap()
 }
 
 fn create_test_journal_entry(timestamp: i64, action: &str) -> JournalEntry {
     JournalEntry::new(
         EventId::generate(),
-        timestamp,
+        timestamp.max(1),
         action.to_owned(),
         Identity::new(Fingerprint::new("a".repeat(64)).unwrap(), Role::Admin),
         "details".to_owned(),
