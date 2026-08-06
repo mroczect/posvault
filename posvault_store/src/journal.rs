@@ -110,13 +110,19 @@ impl VctrlJournal {
     }
 
     fn maybe_compact(&mut self) -> Result<()> {
-        let all = self.read_all()?;
-        let non_archive_count = all
-            .iter()
-            .filter(|e| e.id.as_str() != ARCHIVE_ENTRY_NAME)
-            .count();
-        if non_archive_count > self.compaction_threshold as usize {
-            self.compact()?;
+        let journal_ref = "refs/journal";
+        let current_head = self.vault.store.get_ref(journal_ref)?;
+        if let Some(head) = current_head {
+            let commit = self.vault.store.get_commit(&head)?;
+            let tree = self.vault.store.get_tree(&commit.tree)?;
+            let count = tree
+                .entries()
+                .iter()
+                .filter(|e| e.name.starts_with("journal-") && e.name != ARCHIVE_ENTRY_NAME)
+                .count();
+            if count as u64 > self.compaction_threshold {
+                self.compact()?;
+            }
         }
         Ok(())
     }
