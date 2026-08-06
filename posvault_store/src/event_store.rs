@@ -46,7 +46,10 @@ impl EventStore for VctrlEventStore {
             .store
             .put(&new_tree_hash, &Object::Tree(new_tree))?;
 
-        let author = UserID::new(event.author.fingerprint.as_str().to_string(), String::new())?;
+        let author = UserID::new(
+            event.author.fingerprint.as_str().to_string(),
+            "posvault@internal".into(),
+        )?;
 
         let commit = Commit::new(
             new_tree_hash,
@@ -80,7 +83,7 @@ impl EventStore for VctrlEventStore {
         let tree = self.vault.store.get_tree(&head_commit.tree)?;
         let mut count: u64 = 0;
         for entry in tree.entries() {
-            if entry.name.starts_with("events/") && entry.kind == EntryKind::Blob {
+            if entry.name.starts_with("events-") && entry.kind == EntryKind::Blob {
                 count += 1;
             }
         }
