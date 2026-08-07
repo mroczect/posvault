@@ -1,28 +1,22 @@
 use posvault_handler::types::{Fingerprint, Role};
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 const DEFAULT_SESSION_DURATION: u64 = 8 * 3600;
 
 #[derive(Debug, Clone)]
 pub struct Session {
+    pub id: String,
     pub fingerprint: Fingerprint,
     pub role: Role,
     created_at: u64,
     expires_at: u64,
+    duration: u64,
 }
 
 impl Session {
     pub fn new(fingerprint: Fingerprint, role: Role) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        Self {
-            fingerprint,
-            role,
-            created_at: now,
-            expires_at: now + DEFAULT_SESSION_DURATION,
-        }
+        Self::with_duration(fingerprint, role, DEFAULT_SESSION_DURATION)
     }
 
     pub fn with_duration(fingerprint: Fingerprint, role: Role, duration_secs: u64) -> Self {
@@ -31,10 +25,12 @@ impl Session {
             .unwrap_or_default()
             .as_secs();
         Self {
+            id: Uuid::new_v4().to_string(),
             fingerprint,
             role,
             created_at: now,
             expires_at: now + duration_secs,
+            duration: duration_secs,
         }
     }
 
@@ -52,7 +48,7 @@ impl Session {
             .unwrap_or_default()
             .as_secs();
         self.created_at = now;
-        self.expires_at = now + DEFAULT_SESSION_DURATION;
+        self.expires_at = now + self.duration;
     }
 
     pub fn created_at(&self) -> u64 {
