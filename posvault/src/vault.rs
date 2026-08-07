@@ -69,7 +69,7 @@ impl PosVault {
             encrypt_event(&mut event, &self.recipients)?;
         }
 
-        let store = self.store.clone_store()?;
+        let store = self.store.store_arc();
         let event_store = VctrlEventStore::new(store);
 
         if let Some(ref signer) = self.signer {
@@ -85,7 +85,7 @@ impl PosVault {
 
     pub fn journal(&mut self, entry: JournalEntry) -> Result<()> {
         let _session = self.session()?;
-        let store = self.store.clone_store()?;
+        let store = self.store.store_arc();
         let journal = VctrlJournal::new(store);
 
         if let Some(ref signer) = self.signer {
@@ -100,8 +100,8 @@ impl PosVault {
     }
 
     pub fn query_engine(&self) -> Result<QueryEngine<CombinedStore>> {
-        let store1 = self.store.clone_store()?;
-        let store2 = self.store.clone_store()?;
+        let store1 = self.store.store_arc();
+        let store2 = self.store.store_arc();
         let event_store = VctrlEventStore::new(store1);
         let snapshot_store = VctrlSnapshotStore::new(store2);
         Ok(QueryEngine::new(CombinedStore {
