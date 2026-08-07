@@ -1,27 +1,27 @@
 use posvault_handler::types::Snapshot;
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 pub struct SnapshotCache {
-    inner: RefCell<Option<Snapshot>>,
+    inner: Mutex<Option<Snapshot>>,
 }
 
 impl SnapshotCache {
     pub fn new() -> Self {
         SnapshotCache {
-            inner: RefCell::new(None),
+            inner: Mutex::new(None),
         }
     }
 
     pub fn get(&self) -> Option<Snapshot> {
-        self.inner.borrow().clone()
+        self.inner.lock().unwrap().clone()
     }
 
     pub fn set(&self, snapshot: Snapshot) {
-        *self.inner.borrow_mut() = Some(snapshot);
+        *self.inner.lock().unwrap() = Some(snapshot);
     }
 
     pub fn invalidate(&self) {
-        *self.inner.borrow_mut() = None;
+        *self.inner.lock().unwrap() = None;
     }
 }
 
