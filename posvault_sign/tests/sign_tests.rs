@@ -80,10 +80,10 @@ fn test_signature_verification() {
     let sig = signer.sign(data).unwrap();
     let mut sig_bytes = [0u8; 64];
     sig_bytes.copy_from_slice(&sig);
-    let valid = signer.verify(data, &sig_bytes).unwrap();
+    let valid = signer.verify(data, &sig_bytes);
     assert!(valid);
 
     let wrong_data = b"wrong data";
-    let invalid = signer.verify(wrong_data, &sig_bytes).unwrap();
+    let invalid = signer.verify(wrong_data, &sig_bytes);
     assert!(!invalid);
 }
