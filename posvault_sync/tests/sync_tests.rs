@@ -1,6 +1,4 @@
 use libvctrl::domain::user::UserID;
-use libvctrl::storage::file_store::FileStore;
-use libvctrl::storage::traits::{ObjectStore, RefStore};
 use posvault_handler::traits::{ConflictResolver, Transport};
 use posvault_handler::types::BranchName;
 use posvault_store::PosVault;
@@ -21,25 +19,15 @@ fn create_author() -> UserID {
     UserID::new("tester".into(), "test@posvault.internal".into()).unwrap()
 }
 
-unsafe fn store_and_refs(store: &mut FileStore) -> (&mut dyn ObjectStore, &mut dyn RefStore) {
-    let ptr = store as *mut FileStore;
-    unsafe {
-        (
-            &mut *ptr as &mut dyn ObjectStore,
-            &mut *ptr as &mut dyn RefStore,
-        )
-    }
-}
-
 #[test]
 fn test_create_store_branch() {
     let (_dir, vault) = setup_vault();
     let mut guard = vault.store_ref().lock().unwrap();
-    let (store, refs) = unsafe { store_and_refs(&mut guard) };
-    let branch = create_store_branch(store, refs, "tokomainan").unwrap();
+    let refs: &mut dyn libvctrl::storage::traits::RefStore = &mut *guard;
+    let branch = create_store_branch(refs, "tokomainan").unwrap();
     assert_eq!(branch.as_str(), "store-tokomainan");
 
-    let current = current_branch(&*guard).unwrap().unwrap();
+    let current = current_branch(refs).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-tokomainan");
 }
 
@@ -47,20 +35,23 @@ fn test_create_store_branch() {
 fn test_checkout_branch() {
     let (_dir, vault) = setup_vault();
 
-    let mut guard = vault.store_ref().lock().unwrap();
-    let (store, refs) = unsafe { store_and_refs(&mut guard) };
-    create_store_branch(store, refs, "cabang1").unwrap();
-    drop(guard);
+    {
+        let mut guard = vault.store_ref().lock().unwrap();
+        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
+        create_store_branch(refs, "cabang1").unwrap();
+    }
 
-    let mut guard = vault.store_ref().lock().unwrap();
-    let (store, refs) = unsafe { store_and_refs(&mut guard) };
-    create_store_branch(store, refs, "cabang2").unwrap();
-    drop(guard);
+    {
+        let mut guard = vault.store_ref().lock().unwrap();
+        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
+        create_store_branch(refs, "cabang2").unwrap();
+    }
 
     let branch = BranchName::new("store-cabang1").unwrap();
     let mut guard = vault.store_ref().lock().unwrap();
-    checkout_branch(&mut *guard, &branch).unwrap();
-    let current = current_branch(&*guard).unwrap().unwrap();
+    let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
+    checkout_branch(refs, &branch).unwrap();
+    let current = current_branch(refs).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-cabang1");
 }
 
@@ -127,8 +118,8 @@ fn test_pull_and_merge_no_conflict() {
 
     {
         let mut guard = local_vault.store_ref().lock().unwrap();
-        let (store, refs) = unsafe { store_and_refs(&mut guard) };
-        create_store_branch(store, refs, "toko1").unwrap();
+        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
+        create_store_branch(refs, "toko1").unwrap();
     }
 
     let remote_dir = TempDir::new().unwrap();
