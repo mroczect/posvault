@@ -106,7 +106,11 @@ impl VctrlJournal {
             return Ok(());
         }
 
-        unarchived.sort_by_key(|e| e.timestamp);
+        unarchived.sort_by(|a, b| {
+            a.timestamp
+                .cmp(&b.timestamp)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
 
         let next_seq = archive_entries.len() as u64;
         let archive_blob = Blob::new(
@@ -230,6 +234,7 @@ impl Journal for VctrlJournal {
             Some(h) => h,
             None => return Ok(vec![]),
         };
+
         let commit = store.get_commit(&commit_hash)?;
         let tree = store.get_tree(&commit.tree)?;
 
@@ -247,7 +252,11 @@ impl Journal for VctrlJournal {
                 entries.push(je);
             }
         }
-        entries.sort_by_key(|e| e.timestamp);
+        entries.sort_by(|a, b| {
+            a.timestamp
+                .cmp(&b.timestamp)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
         Ok(entries)
     }
 }
