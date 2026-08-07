@@ -56,6 +56,7 @@ impl SnapshotStore for VctrlSnapshotStore {
         let ref_name = format!("refs/snapshots/{}", ts);
         store.set_ref(&ref_name, &hash)?;
         store.set_ref("refs/snapshots/latest", &hash)?;
+
         Ok(())
     }
 
