@@ -1,7 +1,20 @@
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use libvctrl::*;
+use libvctrl::Hash;
+use libvctrl::Object;
+use libvctrl::codec::BinaryEncoder;
+use libvctrl::codec::Encoder;
+use libvctrl::domain::blob::Blob;
+use libvctrl::domain::commit::Commit;
+use libvctrl::domain::tree::{EntryKind, Tree, TreeEntry};
+use libvctrl::domain::user::UserID;
+use libvctrl::hashing::Hasher;
+use libvctrl::hashing::Sha512Hasher;
+use libvctrl::storage::file_store::FileStore;
+use libvctrl::storage::traits::ObjectStore;
+use libvctrl::storage::traits::{ObjectStoreExt, RefStore};
+
 use posvault_handler::constants::JOURNAL_COMPACTION_THRESHOLD;
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::Journal;
@@ -20,6 +33,7 @@ impl fmt::Debug for VctrlJournal {
             .finish()
     }
 }
+
 impl VctrlJournal {
     pub fn new(store: Arc<Mutex<FileStore>>) -> Self {
         Self {
@@ -91,6 +105,8 @@ impl VctrlJournal {
         if unarchived.is_empty() {
             return Ok(());
         }
+
+        unarchived.sort_by_key(|e| e.timestamp);
 
         let next_seq = archive_entries.len() as u64;
         let archive_blob = Blob::new(
@@ -231,6 +247,7 @@ impl Journal for VctrlJournal {
                 entries.push(je);
             }
         }
+        entries.sort_by_key(|e| e.timestamp);
         Ok(entries)
     }
 }

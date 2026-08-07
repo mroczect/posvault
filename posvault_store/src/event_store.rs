@@ -1,7 +1,19 @@
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use libvctrl::*;
+use libvctrl::Object;
+use libvctrl::codec::BinaryEncoder;
+use libvctrl::codec::Encoder;
+use libvctrl::domain::blob::Blob;
+use libvctrl::domain::commit::Commit;
+use libvctrl::domain::tree::{EntryKind, Tree, TreeEntry};
+use libvctrl::domain::user::UserID;
+use libvctrl::hashing::Hasher;
+use libvctrl::hashing::Sha512Hasher;
+use libvctrl::storage::file_store::FileStore;
+use libvctrl::storage::traits::ObjectStore;
+use libvctrl::storage::traits::{ObjectStoreExt, RefStore};
+
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::EventStore;
 use posvault_handler::types::Event;
@@ -38,7 +50,7 @@ impl VctrlEventStore {
             .find(|e| e.name == "checkpoint" && e.kind == EntryKind::Blob)
         {
             let blob = store.get_blob(&entry.hash)?;
-            Ok(deserialize_counter(&blob))
+            deserialize_counter(&blob)
         } else {
             Ok(0)
         }
@@ -156,10 +168,7 @@ impl EventStore for VctrlEventStore {
         for entry in root_tree.entries() {
             if entry.name.starts_with("events-") && entry.kind == EntryKind::Tree {
                 let bucket_str = &entry.name[7..];
-                if let Ok(bucket) = bucket_str.parse::<u64>() {
-                    if bucket < checkpoint / BUCKET_SIZE {
-                        continue;
-                    }
+                if let Ok(_bucket) = bucket_str.parse::<u64>() {
                     let bucket_tree = store.get_tree(&entry.hash)?;
                     for be in bucket_tree.entries() {
                         if be.kind == EntryKind::Blob
@@ -193,8 +202,11 @@ fn serialize_counter(counter: u64) -> Vec<u8> {
     counter.to_be_bytes().to_vec()
 }
 
-fn deserialize_counter(data: &[u8]) -> u64 {
+fn deserialize_counter(data: &[u8]) -> Result<u64> {
+    if data.len() < 8 {
+        return Err(PosVaultError::Storage("checkpoint data corrupt".into()));
+    }
     let mut arr = [0u8; 8];
     arr.copy_from_slice(&data[..8]);
-    u64::from_be_bytes(arr)
+    Ok(u64::from_be_bytes(arr))
 }

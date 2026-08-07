@@ -2,7 +2,14 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use libvctrl::*;
+use libvctrl::Object;
+use libvctrl::domain::blob::Blob;
+use libvctrl::hashing::Hasher;
+use libvctrl::hashing::Sha512Hasher;
+use libvctrl::storage::file_store::FileStore;
+use libvctrl::storage::traits::ObjectStore;
+use libvctrl::storage::traits::{ObjectStoreExt, RefStore};
+
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::SnapshotStore;
 use posvault_handler::types::Snapshot;
@@ -27,7 +34,7 @@ impl VctrlSnapshotStore {
     fn current_timestamp() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs()
     }
 }
