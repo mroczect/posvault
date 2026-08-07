@@ -8,13 +8,16 @@ repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
 posvault_handler = { path = "../posvault_handler", version = "0.2.0" }
-libage_auth_handler = "0.2"
-librage = "1.1"
-zeroize = "1.9"
-age_auth = "0.2.0"
 age-credentials = "1.0.0"
-libage_otp = "0.2.0"
+libage_auth_handler = "0.2"
+libage_otp = "0.2"
+zeroize = "1.9"
+uuid = { version = "1", features = ["v4"] }           
+ed25519-dalek = { version = "2", features = ["serde"] } 
+rand_core = "0.6"
+hex = "0.4.3"
 
 [dev-dependencies]
-hex = "0.4.3"
+age_auth = "0.2.0"
+librage = "1.1.0"
 sha2 = "0.11.0"
