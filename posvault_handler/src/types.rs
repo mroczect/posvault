@@ -64,8 +64,7 @@ impl EventId {
     }
 
     pub fn generate() -> Self {
-        let id = uuid::Uuid::new_v4().to_string();
-        EventId::new(id).expect("UUID v4 harus selalu valid untuk EventId")
+        EventId(uuid::Uuid::new_v4().to_string())
     }
 
     pub fn as_str(&self) -> &str {
@@ -266,6 +265,14 @@ impl Recipient {
                 "Kunci publik age tidak valid (prefix atau panjang)".to_string(),
             ));
         }
+        if !key[4..]
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        {
+            return Err(PosVaultError::InvalidInput(
+                "Kunci publik age mengandung karakter tidak valid".to_string(),
+            ));
+        }
         Ok(Recipient(key))
     }
 
@@ -449,6 +456,7 @@ mod tests {
             Recipient::new("age1yt4hxqdqp2vt0zr0h6z6f0g4f6z5x5p6xjxpyf6v7z6qk8w0e3srs9m0j").is_ok()
         );
         assert!(Recipient::new("abc123").is_err());
+        assert!(Recipient::new("age1ABCDEFGH").is_err());
     }
 
     #[test]
