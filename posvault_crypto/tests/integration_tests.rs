@@ -40,8 +40,7 @@ fn encrypt_multiple_recipients() {
     let (rec1, ident1) = generate_keys();
     let (rec2, ident2) = generate_keys();
 
-    let recipients = vec![rec1.clone(), rec2.clone()];
-    encrypt_event(&mut event, &recipients).unwrap();
+    encrypt_event(&mut event, &[&rec1, &rec2]).unwrap();
     assert_ne!(event.payload.as_bytes(), original.as_slice());
     assert_eq!(event.signature.as_bytes(), &[0u8; 64]);
 
@@ -66,7 +65,7 @@ fn decrypt_wrong_key_fails() {
     assert!(result.is_err());
     match result {
         Err(PosVaultError::Encryption(_)) => {}
-        _ => panic!("Error harus Encryption, bukan {:?}", result),
+        _ => panic!("Expected Encryption error"),
     }
 }
 
@@ -77,8 +76,8 @@ fn encrypt_empty_recipients_fails() {
     let result = encrypt_event(&mut event, empty);
     assert!(result.is_err());
     match result {
-        Err(PosVaultError::Encryption(msg)) => assert!(msg.contains("tidak boleh kosong")),
-        _ => panic!("Error harus Encryption dengan pesan recipients kosong"),
+        Err(PosVaultError::Encryption(msg)) => assert!(msg.contains("must not be empty")),
+        _ => panic!("Expected Encryption error with 'must not be empty'"),
     }
 }
 
@@ -110,6 +109,39 @@ fn decrypt_with_passphrase_identity_fails() {
 }
 
 #[test]
+fn decrypt_untouched_event_fails() {
+    let mut event = create_test_event();
+    let (_, ident) = generate_keys();
+    let result = decrypt_event(&mut event, &ident);
+    assert!(result.is_err());
+}
+
+#[test]
+fn signature_preserved_after_encryption() {
+    let mut event = create_test_event();
+    let real_sig = Signature::new(vec![42u8; 64]).unwrap();
+    event.signature = real_sig.clone();
+
+    let (rec, _) = generate_keys();
+    encrypt_event(&mut event, &[&rec]).unwrap();
+
+    assert_eq!(event.signature, real_sig);
+}
+
+#[test]
+fn signature_unchanged_after_decryption() {
+    let mut event = create_test_event();
+    let real_sig = Signature::new(vec![7u8; 64]).unwrap();
+    event.signature = real_sig.clone();
+    let (rec, ident) = generate_keys();
+
+    encrypt_event(&mut event, &[&rec]).unwrap();
+    decrypt_event(&mut event, &ident).unwrap();
+
+    assert_eq!(event.signature, real_sig);
+}
+
+#[test]
 fn roundtrip_with_small_payload() {
     let mut event = create_test_event();
     event.payload = EncryptedPayload::new(b"x".to_vec()).unwrap();
@@ -124,22 +156,21 @@ fn roundtrip_with_small_payload() {
 }
 
 #[test]
-fn signature_invalidated_after_encryption() {
+fn roundtrip_with_large_payload() {
+    let large_data = vec![0xAB; 1_000_000];
     let mut event = create_test_event();
-    let real_sig = Signature::new(vec![1u8; 64]).unwrap();
-    event.signature = real_sig.clone();
+    event.payload = EncryptedPayload::new(large_data.clone()).unwrap();
+    let original = event.payload.as_bytes().to_vec();
+    let (rec, ident) = generate_keys();
 
-    let (rec, _) = generate_keys();
     encrypt_event(&mut event, &[&rec]).unwrap();
+    assert_ne!(event.payload.as_bytes(), original.as_slice());
 
-    assert_eq!(event.signature.as_bytes(), &[0u8; 64]);
-    assert_ne!(event.signature, real_sig);
+    decrypt_event(&mut event, &ident).unwrap();
+    assert_eq!(event.payload.as_bytes(), original.as_slice());
 }
 
 #[test]
-fn decrypt_untouched_event_fails() {
-    let mut event = create_test_event();
-    let (_, ident) = generate_keys();
-    let result = decrypt_event(&mut event, &ident);
-    assert!(result.is_err());
+fn roundtrip_empty_payload_fails() {
+    assert!(EncryptedPayload::new(vec![]).is_err());
 }
