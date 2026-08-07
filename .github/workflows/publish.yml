@@ -2,23 +2,17 @@ name: Publish to crates.io
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 jobs:
   publish:
-    name: Publish All Crates (Sequential)
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-workspaces
-        run: cargo install cargo-workspaces
-
-      - name: Login to crates.io
-        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
-
-      - name: Publish crates in order
-        run: cargo workspaces publish --from-git --yes
+      - uses: rust-lang/crates-io-auth-action@v1
+      - run: cargo install cargo-workspaces
+      - run: cargo workspaces publish --from-git --yes --allow-dirty
