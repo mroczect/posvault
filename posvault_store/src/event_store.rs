@@ -168,7 +168,10 @@ impl EventStore for VctrlEventStore {
         for entry in root_tree.entries() {
             if entry.name.starts_with("events-") && entry.kind == EntryKind::Tree {
                 let bucket_str = &entry.name[7..];
-                if let Ok(_bucket) = bucket_str.parse::<u64>() {
+                if let Ok(bucket) = bucket_str.parse::<u64>() {
+                    if bucket < checkpoint / BUCKET_SIZE {
+                        continue;
+                    }
                     let bucket_tree = store.get_tree(&entry.hash)?;
                     for be in bucket_tree.entries() {
                         if be.kind == EntryKind::Blob
