@@ -76,7 +76,7 @@ fn test_get_events_since_returns_events() {
 #[test]
 fn test_save_and_load_snapshot() {
     let (_dir, vault) = setup_vault();
-    let mut snap_store = VctrlSnapshotStore::new(vault);
+    let mut snap_store = VctrlSnapshotStore::new(vault.store_arc());
     let hash = CommitHash::from_bytes([1u8; 64]);
     let snapshot = Snapshot::new(1, EncryptedPayload::new(b"hello".to_vec()).unwrap(), hash)
         .expect("snapshot valid");

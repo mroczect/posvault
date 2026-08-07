@@ -1,0 +1,33 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish-crate:
+    name: Publish ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - posvault_handler
+          - posvault_crypto
+          - posvault_auth
+          - posvault_query
+          - posvault_sign
+          - posvault_store
+          - posvault_sync
+          - posvault
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Login to crates.io
+        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Publish ${{ matrix.crate }}
+        run: cargo publish -p ${{ matrix.crate }}

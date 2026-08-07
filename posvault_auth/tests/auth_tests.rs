@@ -1,17 +1,16 @@
-use age_auth::AgeAuthenticator;
+use age_auth::{AgeAuthenticator, OtpGenerator};
 use age_credentials::backend::traits::AccountBackend;
 use age_credentials::crypto;
-use age_credentials::domain::error::Error as AccountError;
 use age_credentials::domain::fingerprint::Fingerprint;
 use age_credentials::domain::identity::Identity;
-use age_credentials::domain::types::{KeyGenData, UserID};
+use age_credentials::domain::types::UserID;
 use libage_auth_handler::types::Base32String;
 use posvault_auth::{Session, login, require_role};
 use posvault_handler::types::Role;
 use std::collections::HashMap;
 use zeroize::Zeroizing;
 
-type AccountResult<T> = Result<T, AccountError>;
+type AccountResult<T> = Result<T, age_credentials::domain::error::AccountError>;
 
 struct MockBackend {
     identities: HashMap<Fingerprint, Identity>,
@@ -33,7 +32,7 @@ impl MockBackend {
         _totp_secret_base32: &str,
     ) -> Identity {
         let kp = librage::generate_keypair();
-        let data = kp.data.as_ref().expect("Key generation should succeed");
+        let data = kp.data.expect("Key generation should succeed");
 
         let fingerprint = {
             use sha2::{Digest, Sha256};

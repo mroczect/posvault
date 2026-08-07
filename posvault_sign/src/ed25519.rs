@@ -4,6 +4,7 @@ use posvault_handler::traits::Signer;
 use rand_core::{OsRng, RngCore};
 use std::fmt;
 
+#[derive(Clone)]
 pub struct Ed25519Signer {
     signing_key: SigningKey,
 }
