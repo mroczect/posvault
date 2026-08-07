@@ -1,5 +1,6 @@
 use posvault_auth::Session;
 use posvault_crypto::{decrypt_event, encrypt_event};
+use posvault_handler::Transport;
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::{EventStore, Journal, SnapshotStore};
 use posvault_handler::types::{Event, JournalEntry};
@@ -115,9 +116,8 @@ impl PosVault {
     }
 
     pub fn sync_to_remote(&self, remote_path: impl AsRef<Path>) -> Result<()> {
-        let author =
-            libvctrl::domain::user::UserID::new("sync".into(), "sync@posvault.internal".into())?;
-        posvault_sync::sync::pull_and_merge(&self.path, remote_path.as_ref(), author)
+        let mut transport = posvault_sync::FileTransport::new(&self.path, remote_path);
+        transport.push(&[])
     }
 }
 
