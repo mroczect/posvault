@@ -1,47 +1,56 @@
-use librage::{decrypt, encrypt, encrypt_multiple};
 use posvault_handler::errors::{PosVaultError, Result};
-use posvault_handler::types::{EncryptedPayload, Event};
+use posvault_handler::types::{EncryptedPayload, Event, Signature};
 
-pub fn encrypt_event(event: &mut Event, recipients: &[String]) -> Result<()> {
+pub fn encrypt_event(event: &mut Event, recipients: &[impl AsRef<str>]) -> Result<()> {
+    if recipients.is_empty() {
+        return Err(PosVaultError::Encryption(
+            "recipients tidak boleh kosong".into(),
+        ));
+    }
+
     let plaintext = event.payload.as_bytes();
+
     let cipherbytes = if recipients.len() > 1 {
-        let keys: Vec<&str> = recipients.iter().map(|s| s.as_str()).collect();
-        let response = encrypt_multiple(plaintext, &keys);
+        let keys: Vec<&str> = recipients.iter().map(|s| s.as_ref()).collect();
+        let response = librage::encrypt_multiple(plaintext, &keys);
         if !response.success {
             return Err(map_librage_error(&response.error));
         }
-        let data = response
-            .data
-            .ok_or_else(|| PosVaultError::Encryption("no data in response".into()))?;
+        let data = response.data.ok_or_else(|| {
+            PosVaultError::Encryption("respons tidak mengandung data ciphertext".into())
+        })?;
         data.ciphertext.to_vec()
     } else {
-        let single_key = recipients
-            .first()
-            .ok_or_else(|| PosVaultError::Encryption("no recipients provided".into()))?;
-        let response = encrypt(plaintext, single_key.as_str());
+        let single_key = recipients.first().expect("recipients tidak kosong");
+        let key: &str = single_key.as_ref();
+        let response = librage::encrypt(plaintext, key);
         if !response.success {
             return Err(map_librage_error(&response.error));
         }
-        let data = response
-            .data
-            .ok_or_else(|| PosVaultError::Encryption("no data in response".into()))?;
+        let data = response.data.ok_or_else(|| {
+            PosVaultError::Encryption("respons tidak mengandung data ciphertext".into())
+        })?;
         data.ciphertext.to_vec()
     };
 
     let encrypted = EncryptedPayload::new(cipherbytes)?;
     event.payload = encrypted;
+
+    event.signature =
+        Signature::new(vec![0u8; 64]).expect("64 zero bytes always valid signature placeholder");
+
     Ok(())
 }
 
 pub fn decrypt_event(event: &mut Event, identity: &str) -> Result<()> {
     let cipherbytes = event.payload.as_bytes();
-    let response = decrypt(cipherbytes, identity);
+    let response = librage::decrypt(cipherbytes, identity);
     if !response.success {
         return Err(map_librage_error(&response.error));
     }
     let data = response
         .data
-        .ok_or_else(|| PosVaultError::Encryption("no data in response".into()))?;
+        .ok_or_else(|| PosVaultError::Encryption("respons dekripsi kosong".into()))?;
     let plaintext = data.plaintext.to_vec();
     let decrypted = EncryptedPayload::new(plaintext)?;
     event.payload = decrypted;
@@ -49,16 +58,15 @@ pub fn decrypt_event(event: &mut Event, identity: &str) -> Result<()> {
 }
 
 fn map_librage_error(body: &Option<librage::ErrorBody>) -> PosVaultError {
-    match body {
-        Some(b) => PosVaultError::Encryption(format!("{}: {}", b.code, b.message)),
-        None => PosVaultError::Encryption("unknown librage error".into()),
-    }
+    body.as_ref()
+        .map(|b| PosVaultError::Encryption(format!("{}: {}", b.code, b.message)))
+        .unwrap_or_else(|| PosVaultError::Encryption("unknown librage error".into()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use posvault_handler::types::{EventId, Fingerprint, Identity, Role, Signature};
+    use posvault_handler::types::{EventId, Fingerprint, Identity, Role};
 
     fn create_test_event() -> Event {
         let id = EventId::generate();
@@ -68,59 +76,92 @@ mod tests {
         Event::new(id, 1, author, payload, sig).unwrap()
     }
 
-    #[test]
-    fn test_encrypt_decrypt_single_recipient() {
-        let mut event = create_test_event();
-        let plaintext_original = event.payload.as_bytes().to_vec();
-
+    fn generate_keys() -> (String, String) {
         let kp = librage::generate_keypair();
         assert!(kp.success);
-        let data = kp.data.as_ref().unwrap();
-        let recipient = data.public_key.clone();
-        let identity = data.secret_key.as_str().to_owned();
+        let data = kp.data.unwrap();
+        (data.public_key, data.secret_key.to_string())
+    }
 
-        let recipients = vec![recipient];
-        encrypt_event(&mut event, &recipients).unwrap();
-        assert_ne!(event.payload.as_bytes(), plaintext_original.as_slice());
+    #[test]
+    fn encrypt_decrypt_single_recipient() {
+        let mut event = create_test_event();
+        let original_payload = event.payload.as_bytes().to_vec();
+        let (recipient, identity) = generate_keys();
+
+        encrypt_event(&mut event, &[&recipient]).unwrap();
+        assert_ne!(event.payload.as_bytes(), original_payload.as_slice());
+        assert_eq!(event.signature.as_bytes(), &[0u8; 64]);
 
         decrypt_event(&mut event, &identity).unwrap();
-        assert_eq!(event.payload.as_bytes(), plaintext_original.as_slice());
+        assert_eq!(event.payload.as_bytes(), original_payload.as_slice());
     }
 
     #[test]
-    fn test_encrypt_multiple_recipients() {
+    fn encrypt_multiple_recipients() {
         let mut event = create_test_event();
-        let plaintext_original = event.payload.as_bytes().to_vec();
+        let original = event.payload.as_bytes().to_vec();
+        let (rec1, ident1) = generate_keys();
+        let (rec2, ident2) = generate_keys();
 
-        let kp1 = librage::generate_keypair();
-        let kp2 = librage::generate_keypair();
-        let data1 = kp1.data.as_ref().unwrap();
-        let data2 = kp2.data.as_ref().unwrap();
+        encrypt_event(&mut event, &[&rec1, &rec2]).unwrap();
+        assert_ne!(event.payload.as_bytes(), original.as_slice());
+        assert_eq!(event.signature.as_bytes(), &[0u8; 64]);
 
-        let recipients = vec![data1.public_key.clone(), data2.public_key.clone()];
-        encrypt_event(&mut event, &recipients).unwrap();
-        assert_ne!(event.payload.as_bytes(), plaintext_original.as_slice());
+        let mut event1 = event.clone();
+        decrypt_event(&mut event1, &ident1).unwrap();
+        assert_eq!(event1.payload.as_bytes(), original.as_slice());
 
-        decrypt_event(&mut event, data1.secret_key.as_str()).unwrap();
-        assert_eq!(event.payload.as_bytes(), plaintext_original.as_slice());
-
-        let mut event2 = create_test_event();
-        encrypt_event(&mut event2, &recipients).unwrap();
-        decrypt_event(&mut event2, data2.secret_key.as_str()).unwrap();
-        assert_eq!(event2.payload.as_bytes(), plaintext_original.as_slice());
+        let mut event2 = event.clone();
+        decrypt_event(&mut event2, &ident2).unwrap();
+        assert_eq!(event2.payload.as_bytes(), original.as_slice());
     }
 
     #[test]
-    fn test_decrypt_with_wrong_key_fails() {
+    fn encrypt_with_empty_recipients_fails() {
         let mut event = create_test_event();
-        let kp_enc = librage::generate_keypair();
-        let kp_wrong = librage::generate_keypair();
-        let data_enc = kp_enc.data.as_ref().unwrap();
-        let data_wrong = kp_wrong.data.as_ref().unwrap();
+        let recipients: &[&str] = &[];
+        let err = encrypt_event(&mut event, recipients).unwrap_err();
+        match err {
+            PosVaultError::Encryption(msg) => assert!(msg.contains("tidak boleh kosong")),
+            _ => panic!("wrong error variant"),
+        }
+    }
 
-        encrypt_event(&mut event, std::slice::from_ref(&data_enc.public_key)).unwrap();
+    #[test]
+    fn encrypt_with_invalid_key_fails() {
+        let mut event = create_test_event();
+        let res = encrypt_event(&mut event, &["not-a-valid-age-key"]);
+        assert!(res.is_err());
+    }
 
-        let result = decrypt_event(&mut event, data_wrong.secret_key.as_str());
-        assert!(result.is_err());
+    #[test]
+    fn decrypt_with_wrong_key_fails() {
+        let mut event = create_test_event();
+        let (rec, _) = generate_keys();
+        let (_, wrong_ident) = generate_keys();
+
+        encrypt_event(&mut event, &[&rec]).unwrap();
+        assert!(decrypt_event(&mut event, &wrong_ident).is_err());
+    }
+
+    #[test]
+    fn decrypt_with_passphrase_fails_gracefully() {
+        let mut event = create_test_event();
+        let res = decrypt_event(&mut event, "not-a-valid-x25519-identity");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn signature_invalidated_after_encryption() {
+        let mut event = create_test_event();
+        let real_sig = Signature::new(vec![1u8; 64]).unwrap();
+        event.signature = real_sig.clone();
+
+        let (rec, _) = generate_keys();
+        encrypt_event(&mut event, &[&rec]).unwrap();
+
+        assert_eq!(event.signature.as_bytes(), &[0u8; 64]);
+        assert_ne!(event.signature, real_sig);
     }
 }

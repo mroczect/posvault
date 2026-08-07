@@ -1,14 +1,17 @@
-use age_auth::OtpGenerator;
+use age_auth::AgeAuthenticator;
 use age_credentials::backend::traits::AccountBackend;
 use age_credentials::crypto;
-use age_credentials::domain::error::Result as AccountResult;
+use age_credentials::domain::error::Error as AccountError;
 use age_credentials::domain::fingerprint::Fingerprint;
 use age_credentials::domain::identity::Identity;
 use age_credentials::domain::types::{KeyGenData, UserID};
+use libage_auth_handler::types::Base32String;
 use posvault_auth::{Session, login, require_role};
 use posvault_handler::types::Role;
 use std::collections::HashMap;
 use zeroize::Zeroizing;
+
+type AccountResult<T> = Result<T, AccountError>;
 
 struct MockBackend {
     identities: HashMap<Fingerprint, Identity>,
@@ -29,21 +32,23 @@ impl MockBackend {
         passphrase: &str,
         _totp_secret_base32: &str,
     ) -> Identity {
-        let key_data = generate_keypair();
+        let kp = librage::generate_keypair();
+        let data = kp.data.as_ref().expect("Key generation should succeed");
+
         let fingerprint = {
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
-            hasher.update(key_data.public_key.as_bytes());
+            hasher.update(data.public_key.as_bytes());
             let digest = hasher.finalize();
             hex::encode(digest)
         };
         let fp = Fingerprint::new(&fingerprint).unwrap();
 
         let encrypted_private =
-            crypto::encrypt_with_passphrase(key_data.secret_key.as_bytes(), passphrase).unwrap();
+            crypto::encrypt_with_passphrase(data.secret_key.as_bytes(), passphrase).unwrap();
 
         let user_id = UserID::new("Test User", email).unwrap();
-        let identity = Identity::new(fp.clone(), user_id, key_data.public_key.clone(), None);
+        let identity = Identity::new(fp.clone(), user_id, data.public_key.clone(), None);
 
         self.identities.insert(fp.clone(), identity.clone());
         self.encrypted_keys.insert(fp.clone(), encrypted_private);
@@ -103,33 +108,26 @@ impl AccountBackend for MockBackend {
     }
 }
 
-fn generate_keypair() -> KeyGenData {
-    let kp = librage::generate_keypair();
-    let data = kp.data.as_ref().unwrap();
-    KeyGenData {
-        public_key: data.public_key.clone(),
-        secret_key: data.secret_key.clone(),
-    }
-}
-
 #[test]
 fn login_success() {
     let mut backend = MockBackend::new();
     backend.add_account("test@example.com", "correct_pass", "JBSWY3DPEHPK3PXP");
 
+    let totp_code =
+        AgeAuthenticator::totp_now_from_base32(&Base32String::new("JBSWY3DPEHPK3PXP").unwrap())
+            .unwrap();
+
     let session = login(
         &backend,
         "test@example.com",
         "correct_pass",
-        &age_auth::AgeAuthenticator::totp_now_from_base32(
-            &libage_auth_handler::types::Base32String::new("JBSWY3DPEHPK3PXP").unwrap(),
-        )
-        .unwrap(),
+        &totp_code,
         "JBSWY3DPEHPK3PXP",
     )
     .unwrap();
 
-    assert!(session.fingerprint.as_str().len() == 64);
+    assert_eq!(session.fingerprint.as_str().len(), 64);
+    assert!(!session.is_expired());
 }
 
 #[test]
@@ -177,19 +175,22 @@ fn login_unknown_user() {
 
 #[test]
 fn guard_requires_role() {
-    let fp = Fingerprint::new("a".repeat(64)).unwrap();
-    let admin_session = Session::new(
-        posvault_handler::types::Fingerprint::new(fp.as_str()).unwrap(),
-        Role::Admin,
-    );
+    let fp = posvault_handler::types::Fingerprint::new("a".repeat(64)).unwrap();
 
-    let cashier_session = Session::new(
-        posvault_handler::types::Fingerprint::new(fp.as_str()).unwrap(),
-        Role::Cashier,
-    );
+    let admin_session = Session::new(fp.clone(), Role::Admin);
+    let cashier_session = Session::new(fp, Role::Cashier);
 
     assert!(require_role(&admin_session, &[Role::Admin]).is_ok());
     assert!(require_role(&cashier_session, &[Role::Admin]).is_err());
     assert!(require_role(&admin_session, &[Role::Admin, Role::Manager]).is_ok());
     assert!(require_role(&cashier_session, &[Role::Cashier]).is_ok());
+}
+
+#[test]
+fn guard_expired_session() {
+    let fp = posvault_handler::types::Fingerprint::new("a".repeat(64)).unwrap();
+    let mut session = Session::with_duration(fp, Role::Admin, 0);
+    assert!(require_role(&session, &[Role::Admin]).is_err());
+    session.refresh();
+    assert!(require_role(&session, &[Role::Admin]).is_ok());
 }

@@ -1,7 +1,17 @@
-use posvault_handler::errors::Result;
+use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::{Journal, Signer};
-use posvault_handler::types::JournalEntry;
+use posvault_handler::types::{EventId, Identity, JournalEntry, Signature};
+use serde::Serialize;
 use std::fmt;
+
+#[derive(Serialize)]
+struct SignableJournalEntry<'a> {
+    id: &'a EventId,
+    timestamp: i64,
+    action: &'a str,
+    author: &'a Identity,
+    details: &'a str,
+}
 
 pub struct SignedJournal<J: Journal, G: Signer> {
     inner: J,
@@ -25,14 +35,39 @@ impl<J: Journal + fmt::Debug, G: Signer + fmt::Debug> fmt::Debug for SignedJourn
 
 impl<J: Journal, G: Signer> Journal for SignedJournal<J, G> {
     fn record(&mut self, mut entry: JournalEntry) -> Result<()> {
-        let data = serde_json::to_vec(&entry)
-            .map_err(|e| posvault_handler::errors::PosVaultError::Serialization(e.to_string()))?;
-        let signature = self.signer.sign(&data)?;
-        entry.signature = posvault_handler::types::Signature::new(signature)?;
+        let signable = SignableJournalEntry {
+            id: &entry.id,
+            timestamp: entry.timestamp,
+            action: &entry.action,
+            author: &entry.author,
+            details: &entry.details,
+        };
+        let data = serde_json::to_vec(&signable)
+            .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
+        let signature_bytes = self.signer.sign(&data)?;
+        entry.signature = Signature::new(signature_bytes)?;
         self.inner.record(entry)
     }
 
     fn read_all(&self) -> Result<Vec<JournalEntry>> {
-        self.inner.read_all()
+        let entries = self.inner.read_all()?;
+        for entry in &entries {
+            let signable = SignableJournalEntry {
+                id: &entry.id,
+                timestamp: entry.timestamp,
+                action: &entry.action,
+                author: &entry.author,
+                details: &entry.details,
+            };
+            let data = serde_json::to_vec(&signable)
+                .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
+            if !self.signer.verify(&data, entry.signature.as_bytes()) {
+                return Err(PosVaultError::Auth(format!(
+                    "Signature verification failed for journal entry {}",
+                    entry.id.as_str()
+                )));
+            }
+        }
+        Ok(entries)
     }
 }

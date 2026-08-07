@@ -43,10 +43,4 @@ pub enum PosVaultError {
     Tree(#[from] TreeError),
 }
 
-impl PosVaultError {
-    pub fn invalid_input(msg: impl Into<String>) -> Self {
-        PosVaultError::InvalidInput(msg.into())
-    }
-}
-
 pub type Result<T> = std::result::Result<T, PosVaultError>;

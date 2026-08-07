@@ -3,16 +3,14 @@ use crate::validation::Validate;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zeroize::Zeroizing;
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SecretData(Zeroizing<Vec<u8>>);
 
 impl SecretData {
     pub fn new(data: Vec<u8>) -> Result<Self> {
         if data.is_empty() {
-            return Err(PosVaultError::invalid_input(
-                "SecretData tidak boleh kosong",
+            return Err(PosVaultError::InvalidInput(
+                "SecretData tidak boleh kosong".to_string(),
             ));
         }
         Ok(SecretData(Zeroizing::new(data)))
@@ -27,8 +25,8 @@ impl SecretData {
     }
 
     pub fn from_hex(hex_str: &str) -> Result<Self> {
-        let bytes =
-            hex::decode(hex_str).map_err(|_| PosVaultError::invalid_input("hex tidak valid"))?;
+        let bytes = hex::decode(hex_str)
+            .map_err(|_| PosVaultError::InvalidInput("hex tidak valid".to_string()))?;
         SecretData::new(bytes)
     }
 }
@@ -53,11 +51,13 @@ impl EventId {
     pub fn new(id: impl Into<String>) -> Result<Self> {
         let id = id.into();
         if id.is_empty() || id.len() > 64 {
-            return Err(PosVaultError::invalid_input("EventId harus 1..64 karakter"));
+            return Err(PosVaultError::InvalidInput(
+                "EventId harus 1..64 karakter".to_string(),
+            ));
         }
         if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(PosVaultError::invalid_input(
-                "EventId hanya boleh alfanumerik + '-'",
+            return Err(PosVaultError::InvalidInput(
+                "EventId hanya boleh alfanumerik + '-'".to_string(),
             ));
         }
         Ok(EventId(id))
@@ -80,8 +80,8 @@ impl Fingerprint {
     pub fn new(hex: impl Into<String>) -> Result<Self> {
         let hex = hex.into();
         if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(PosVaultError::invalid_input(
-                "Fingerprint harus 64 hex karakter",
+            return Err(PosVaultError::InvalidInput(
+                "Fingerprint harus 64 hex karakter".to_string(),
             ));
         }
         Ok(Fingerprint(hex))
@@ -133,7 +133,9 @@ pub struct Signature(Zeroizing<Vec<u8>>);
 impl Signature {
     pub fn new(bytes: Vec<u8>) -> Result<Self> {
         if bytes.len() != 64 {
-            return Err(PosVaultError::invalid_input("Signature harus 64 bytes"));
+            return Err(PosVaultError::InvalidInput(
+                "Signature harus 64 bytes".to_string(),
+            ));
         }
         Ok(Signature(Zeroizing::new(bytes)))
     }
@@ -175,8 +177,8 @@ pub struct EncryptedPayload(Zeroizing<Vec<u8>>);
 impl EncryptedPayload {
     pub fn new(data: Vec<u8>) -> Result<Self> {
         if data.is_empty() {
-            return Err(PosVaultError::invalid_input(
-                "EncryptedPayload tidak boleh kosong",
+            return Err(PosVaultError::InvalidInput(
+                "EncryptedPayload tidak boleh kosong".to_string(),
             ));
         }
         Ok(EncryptedPayload(Zeroizing::new(data)))
@@ -245,7 +247,9 @@ impl Event {
 impl Validate for Event {
     fn validate(&self) -> Result<()> {
         if self.timestamp <= 0 {
-            return Err(PosVaultError::invalid_input("timestamp harus > 0"));
+            return Err(PosVaultError::InvalidInput(
+                "timestamp harus > 0".to_string(),
+            ));
         }
         Ok(())
     }
@@ -258,8 +262,8 @@ impl Recipient {
     pub fn new(key: impl Into<String>) -> Result<Self> {
         let key = key.into();
         if !key.starts_with("age1") || key.len() <= 4 || key.len() > 512 {
-            return Err(PosVaultError::invalid_input(
-                "Kunci publik age tidak valid (prefix atau panjang)",
+            return Err(PosVaultError::InvalidInput(
+                "Kunci publik age tidak valid (prefix atau panjang)".to_string(),
             ));
         }
         Ok(Recipient(key))
@@ -277,16 +281,16 @@ impl BranchName {
     pub fn new(name: impl Into<String>) -> Result<Self> {
         let name = name.into();
         if name.is_empty() || name.len() > 255 {
-            return Err(PosVaultError::invalid_input(
-                "Nama branch harus 1..255 karakter",
+            return Err(PosVaultError::InvalidInput(
+                "Nama branch harus 1..255 karakter".to_string(),
             ));
         }
         if !name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/')
         {
-            return Err(PosVaultError::invalid_input(
-                "Nama branch mengandung karakter tidak valid",
+            return Err(PosVaultError::InvalidInput(
+                "Nama branch mengandung karakter tidak valid".to_string(),
             ));
         }
         Ok(BranchName(name))
@@ -306,10 +310,12 @@ impl CommitHash {
     }
 
     pub fn from_hex(hex_str: &str) -> Result<Self> {
-        let bytes =
-            hex::decode(hex_str).map_err(|_| PosVaultError::invalid_input("hex tidak valid"))?;
+        let bytes = hex::decode(hex_str)
+            .map_err(|_| PosVaultError::InvalidInput("hex tidak valid".to_string()))?;
         if bytes.len() != 64 {
-            return Err(PosVaultError::invalid_input("Commit hash harus 64 bytes"));
+            return Err(PosVaultError::InvalidInput(
+                "Commit hash harus 64 bytes".to_string(),
+            ));
         }
         let mut arr = [0u8; 64];
         arr.copy_from_slice(&bytes);
@@ -364,10 +370,14 @@ impl Snapshot {
 impl Validate for Snapshot {
     fn validate(&self) -> Result<()> {
         if self.version == 0 {
-            return Err(PosVaultError::invalid_input("Versi snapshot harus > 0"));
+            return Err(PosVaultError::InvalidInput(
+                "Versi snapshot harus > 0".to_string(),
+            ));
         }
         if self.hash.is_zero() {
-            return Err(PosVaultError::invalid_input("Commit hash tidak boleh nol"));
+            return Err(PosVaultError::InvalidInput(
+                "Commit hash tidak boleh nol".to_string(),
+            ));
         }
         Ok(())
     }
@@ -408,10 +418,14 @@ impl JournalEntry {
 impl Validate for JournalEntry {
     fn validate(&self) -> Result<()> {
         if self.timestamp <= 0 {
-            return Err(PosVaultError::invalid_input("timestamp harus > 0"));
+            return Err(PosVaultError::InvalidInput(
+                "timestamp harus > 0".to_string(),
+            ));
         }
         if self.action.is_empty() || self.action.len() > 256 {
-            return Err(PosVaultError::invalid_input("Action harus 1..256 karakter"));
+            return Err(PosVaultError::InvalidInput(
+                "Action harus 1..256 karakter".to_string(),
+            ));
         }
         Ok(())
     }
