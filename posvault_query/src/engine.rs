@@ -38,7 +38,7 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
         let snapshot = Snapshot::new(
             latest_checkpoint,
             posvault_handler::types::EncryptedPayload::new(state.clone())?,
-            posvault_handler::types::CommitHash::from_bytes([0u8; 64]),
+            posvault_handler::types::CommitHash::from_bytes([1u8; 64]),
         )?;
 
         self.store.save_snapshot(snapshot.clone())?;
