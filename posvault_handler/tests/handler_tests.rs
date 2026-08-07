@@ -442,7 +442,7 @@ fn error_from_io_error() {
 
 #[test]
 fn error_display_invalid_input() {
-    let err = PosVaultError::invalid_input("bad input");
+    let err = PosVaultError::InvalidInput("bad input".to_string());
     let msg = format!("{}", err);
     assert!(msg.contains("Invalid input"));
     assert!(msg.contains("bad input"));
