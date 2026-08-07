@@ -1489,6 +1489,7 @@ dependencies = [
 name = "posvault_query"
 version = "0.2.0"
 dependencies = [
+ "libvctrl",
  "posvault_handler",
  "posvault_store",
  "serde",
