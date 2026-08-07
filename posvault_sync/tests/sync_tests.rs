@@ -33,24 +33,34 @@ unsafe fn store_and_refs(store: &mut FileStore) -> (&mut dyn ObjectStore, &mut d
 
 #[test]
 fn test_create_store_branch() {
-    let (_dir, mut vault) = setup_vault();
-    let (store, refs) = unsafe { store_and_refs(&mut vault.store) };
+    let (_dir, vault) = setup_vault();
+    let mut guard = vault.store.lock().unwrap();
+    let (store, refs) = unsafe { store_and_refs(&mut guard) };
     let branch = create_store_branch(store, refs, "tokomainan").unwrap();
     assert_eq!(branch.as_str(), "store-tokomainan");
-    let current = current_branch(&vault.store).unwrap().unwrap();
+
+    let current = current_branch(&*guard).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-tokomainan");
 }
 
 #[test]
 fn test_checkout_branch() {
-    let (_dir, mut vault) = setup_vault();
-    let (store, refs) = unsafe { store_and_refs(&mut vault.store) };
+    let (_dir, vault) = setup_vault();
+
+    let mut guard = vault.store.lock().unwrap();
+    let (store, refs) = unsafe { store_and_refs(&mut guard) };
     create_store_branch(store, refs, "cabang1").unwrap();
-    let (store, refs) = unsafe { store_and_refs(&mut vault.store) };
+    drop(guard);
+
+    let mut guard = vault.store.lock().unwrap();
+    let (store, refs) = unsafe { store_and_refs(&mut guard) };
     create_store_branch(store, refs, "cabang2").unwrap();
+    drop(guard);
+
     let branch = BranchName::new("store-cabang1").unwrap();
-    checkout_branch(&mut vault.store, &branch).unwrap();
-    let current = current_branch(&vault.store).unwrap().unwrap();
+    let mut guard = vault.store.lock().unwrap();
+    checkout_branch(&mut *guard, &branch).unwrap();
+    let current = current_branch(&*guard).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-cabang1");
 }
 
@@ -113,9 +123,13 @@ fn test_file_transport_pull() {
 #[test]
 fn test_pull_and_merge_no_conflict() {
     let local_dir = TempDir::new().unwrap();
-    let mut local_vault = PosVault::open(local_dir.path()).unwrap();
-    let (store, refs) = unsafe { store_and_refs(&mut local_vault.store) };
-    create_store_branch(store, refs, "toko1").unwrap();
+    let local_vault = PosVault::open(local_dir.path()).unwrap();
+
+    {
+        let mut guard = local_vault.store.lock().unwrap();
+        let (store, refs) = unsafe { store_and_refs(&mut guard) };
+        create_store_branch(store, refs, "toko1").unwrap();
+    }
 
     let remote_dir = TempDir::new().unwrap();
     let _remote_vault = PosVault::open(remote_dir.path()).unwrap();
