@@ -57,9 +57,12 @@ fn test_stock_query() {
         serde_json::to_vec(&("apple", -2i64)).unwrap().as_slice(),
     ));
 
+    let decrypt = &|data: &[u8]| -> posvault_handler::errors::Result<Vec<u8>> { Ok(data.to_vec()) };
+    let encrypt = &|data: &[u8]| -> posvault_handler::errors::Result<Vec<u8>> { Ok(data.to_vec()) };
+
     let mut engine = QueryEngine::new(store);
-    let apple_stock = get_stock(&mut engine, "apple").unwrap();
+    let apple_stock = get_stock(&mut engine, decrypt, encrypt, "apple").unwrap();
     assert_eq!(apple_stock, 8);
-    let banana_stock = get_stock(&mut engine, "banana").unwrap();
+    let banana_stock = get_stock(&mut engine, decrypt, encrypt, "banana").unwrap();
     assert_eq!(banana_stock, 5);
 }
