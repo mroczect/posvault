@@ -1,3 +1,4 @@
+use bincode;
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::{EventStore, Signer};
 use posvault_handler::types::{EncryptedPayload, Event, EventId, Identity, Signature};
@@ -15,11 +16,24 @@ struct SignableEvent<'a> {
 pub struct SignedEventStore<S: EventStore, G: Signer> {
     inner: S,
     signer: G,
+    strict_verification: bool,
 }
 
 impl<S: EventStore, G: Signer> SignedEventStore<S, G> {
     pub fn new(inner: S, signer: G) -> Self {
-        SignedEventStore { inner, signer }
+        SignedEventStore {
+            inner,
+            signer,
+            strict_verification: true,
+        }
+    }
+
+    pub fn new_loose(inner: S, signer: G) -> Self {
+        SignedEventStore {
+            inner,
+            signer,
+            strict_verification: false,
+        }
     }
 }
 
@@ -34,13 +48,17 @@ impl<S: EventStore + fmt::Debug, G: Signer + fmt::Debug> fmt::Debug for SignedEv
 
 impl<S: EventStore, G: Signer> EventStore for SignedEventStore<S, G> {
     fn append_event(&mut self, mut event: Event) -> Result<()> {
+        if event.signature.as_bytes() != [0u8; 64] {
+            return Err(PosVaultError::Auth("event already has a signature".into()));
+        }
+
         let signable = SignableEvent {
             id: &event.id,
             timestamp: event.timestamp,
             author: &event.author,
             payload: &event.payload,
         };
-        let data = serde_json::to_vec(&signable)
+        let data = bincode::serialize(&signable)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
         let signature_bytes = self.signer.sign(&data)?;
         event.signature = Signature::new(signature_bytes)?;
@@ -49,6 +67,8 @@ impl<S: EventStore, G: Signer> EventStore for SignedEventStore<S, G> {
 
     fn get_events_since(&self, checkpoint: u64) -> Result<Vec<Event>> {
         let events = self.inner.get_events_since(checkpoint)?;
+        let mut valid_events = Vec::new();
+
         for ev in &events {
             let signable = SignableEvent {
                 id: &ev.id,
@@ -56,16 +76,22 @@ impl<S: EventStore, G: Signer> EventStore for SignedEventStore<S, G> {
                 author: &ev.author,
                 payload: &ev.payload,
             };
-            let data = serde_json::to_vec(&signable)
+            let data = bincode::serialize(&signable)
                 .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-            if !self.signer.verify(&data, ev.signature.as_bytes()) {
-                return Err(PosVaultError::Auth(format!(
-                    "Signature verification failed for event {}",
-                    ev.id.as_str()
-                )));
+            if self.signer.verify(&data, ev.signature.as_bytes()) {
+                valid_events.push(ev.clone());
+            } else {
+                log::warn!("Signature verification failed for event {}", ev.id.as_str());
+                if self.strict_verification {
+                    return Err(PosVaultError::Auth(format!(
+                        "Signature verification failed for event {}",
+                        ev.id.as_str()
+                    )));
+                }
             }
         }
-        Ok(events)
+
+        Ok(valid_events)
     }
 
     fn latest_checkpoint(&self) -> Result<u64> {

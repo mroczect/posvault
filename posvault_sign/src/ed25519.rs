@@ -7,15 +7,20 @@ use std::fmt;
 #[derive(Clone)]
 pub struct Ed25519Signer {
     signing_key: SigningKey,
+    verifying_key: VerifyingKey,
 }
 
 impl Ed25519Signer {
     pub fn new(signing_key: SigningKey) -> Self {
-        Ed25519Signer { signing_key }
+        let verifying_key = signing_key.verifying_key();
+        Ed25519Signer {
+            signing_key,
+            verifying_key,
+        }
     }
 
     pub fn verifying_key(&self) -> VerifyingKey {
-        self.signing_key.verifying_key()
+        self.verifying_key
     }
 }
 
@@ -38,6 +43,10 @@ impl Signer for Ed25519Signer {
         };
         let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         self.signing_key.verify(data, &signature).is_ok()
+    }
+
+    fn public_key_bytes(&self) -> &[u8] {
+        self.verifying_key.as_bytes()
     }
 }
 
