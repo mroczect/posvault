@@ -1450,6 +1450,7 @@ dependencies = [
  "age_auth",
  "hex",
  "libage_auth_handler",
+ "libage_otp",
  "librage",
  "posvault_handler",
  "sha2 0.11.0",
@@ -1502,6 +1503,8 @@ dependencies = [
  "ed25519-dalek",
  "posvault_handler",
  "rand",
+ "rand_core 0.6.4",
+ "serde",
  "serde_json",
  "zeroize",
 ]
