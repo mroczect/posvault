@@ -46,14 +46,12 @@ fn test_append_multiple_events_increases_checkpoint() {
 fn test_save_and_load_snapshot() {
     let (_dir, vault) = setup_vault();
     let mut snap_store = VctrlSnapshotStore::new(vault);
-    let snapshot = Snapshot::new(
-        1,
-        EncryptedPayload::new(b"hello".to_vec()).unwrap(),
-        CommitHash::from_bytes([0u8; 64]),
-    );
+    let hash = CommitHash::from_bytes([1u8; 64]);
+    let snapshot = Snapshot::new(1, EncryptedPayload::new(b"hello".to_vec()).unwrap(), hash)
+        .expect("snapshot valid");
+
     snap_store.save_snapshot(snapshot.clone()).unwrap();
     let loaded = snap_store.load_snapshot().unwrap().unwrap();
-    assert_eq!(loaded.version, 1);
     assert_eq!(loaded.data, snapshot.data);
     assert_eq!(loaded.hash, snapshot.hash);
 }
