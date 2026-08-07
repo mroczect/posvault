@@ -17,7 +17,7 @@ use libvctrl::storage::traits::RefStore;
 use posvault_handler::errors::{PosVaultError, Result};
 
 pub struct PosVault {
-    pub store: Arc<Mutex<FileStore>>, 
+    pub(crate) store: Arc<Mutex<FileStore>>,
     pub(crate) path: PathBuf,
 }
 
@@ -52,6 +52,10 @@ impl PosVault {
 
     pub fn store_arc(&self) -> Arc<Mutex<FileStore>> {
         Arc::clone(&self.store)
+    }
+    #[doc(hidden)]
+    pub fn store_ref(&self) -> &Arc<Mutex<FileStore>> {
+        &self.store
     }
 }
 

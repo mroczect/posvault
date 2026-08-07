@@ -34,7 +34,7 @@ unsafe fn store_and_refs(store: &mut FileStore) -> (&mut dyn ObjectStore, &mut d
 #[test]
 fn test_create_store_branch() {
     let (_dir, vault) = setup_vault();
-    let mut guard = vault.store.lock().unwrap();
+    let mut guard = vault.store_ref().lock().unwrap();
     let (store, refs) = unsafe { store_and_refs(&mut guard) };
     let branch = create_store_branch(store, refs, "tokomainan").unwrap();
     assert_eq!(branch.as_str(), "store-tokomainan");
@@ -47,18 +47,18 @@ fn test_create_store_branch() {
 fn test_checkout_branch() {
     let (_dir, vault) = setup_vault();
 
-    let mut guard = vault.store.lock().unwrap();
+    let mut guard = vault.store_ref().lock().unwrap();
     let (store, refs) = unsafe { store_and_refs(&mut guard) };
     create_store_branch(store, refs, "cabang1").unwrap();
     drop(guard);
 
-    let mut guard = vault.store.lock().unwrap();
+    let mut guard = vault.store_ref().lock().unwrap();
     let (store, refs) = unsafe { store_and_refs(&mut guard) };
     create_store_branch(store, refs, "cabang2").unwrap();
     drop(guard);
 
     let branch = BranchName::new("store-cabang1").unwrap();
-    let mut guard = vault.store.lock().unwrap();
+    let mut guard = vault.store_ref().lock().unwrap();
     checkout_branch(&mut *guard, &branch).unwrap();
     let current = current_branch(&*guard).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-cabang1");
@@ -126,7 +126,7 @@ fn test_pull_and_merge_no_conflict() {
     let local_vault = PosVault::open(local_dir.path()).unwrap();
 
     {
-        let mut guard = local_vault.store.lock().unwrap();
+        let mut guard = local_vault.store_ref().lock().unwrap();
         let (store, refs) = unsafe { store_and_refs(&mut guard) };
         create_store_branch(store, refs, "toko1").unwrap();
     }
