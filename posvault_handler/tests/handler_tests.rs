@@ -1,5 +1,4 @@
 use posvault_handler::*;
-use std::panic;
 
 #[test]
 fn secret_data_new_valid() {
@@ -13,17 +12,6 @@ fn secret_data_empty_fails() {
 }
 
 #[test]
-fn secret_data_zeroize_on_drop() {
-    let data = vec![1u8, 2, 3];
-    let secret = SecretData::new(data.clone()).unwrap();
-    drop(secret);
-    assert_eq!(data, vec![1, 2, 3]);
-}
-
-#[test]
-fn secret_data_not_serializable() {}
-
-#[test]
 fn secret_data_hex_roundtrip() {
     let original = SecretData::new(b"test".to_vec()).unwrap();
     let hex = original.to_hex();
@@ -35,6 +23,8 @@ fn secret_data_hex_roundtrip() {
 fn secret_data_hex_invalid() {
     assert!(SecretData::from_hex("nothex!").is_err());
 }
+
+// #[test]
 
 #[test]
 fn event_id_valid() {
@@ -123,6 +113,12 @@ fn recipient_length_boundary() {
 fn recipient_allows_bech32_chars() {
     let key = "age1qpzry9x8gf2tvdw0s3jn54khce6mua7l";
     assert!(Recipient::new(key).is_ok());
+}
+
+#[test]
+fn recipient_rejects_uppercase_after_prefix() {
+    assert!(Recipient::new("age1ABCDEFGH").is_err());
+    assert!(Recipient::new("age1abcDef").is_err());
 }
 
 #[test]
