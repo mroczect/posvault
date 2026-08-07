@@ -2,12 +2,23 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use libvctrl::*;
+use libvctrl::Object;
+use libvctrl::codec::BinaryEncoder;
+use libvctrl::codec::Encoder;
+use libvctrl::domain::commit::Commit;
+use libvctrl::domain::tree::Tree;
+use libvctrl::domain::user::UserID;
+use libvctrl::hashing::Hasher;
+use libvctrl::hashing::Sha512Hasher;
+use libvctrl::storage::file_store::FileStore;
+use libvctrl::storage::traits::ObjectStore;
+use libvctrl::storage::traits::RefStore;
+
 use posvault_handler::errors::{PosVaultError, Result};
 
 pub struct PosVault {
-    pub store: Arc<Mutex<FileStore>>,
-    pub path: PathBuf,
+    pub store: Arc<Mutex<FileStore>>, 
+    pub(crate) path: PathBuf,
 }
 
 impl fmt::Debug for PosVault {
