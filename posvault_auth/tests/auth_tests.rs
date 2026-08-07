@@ -188,8 +188,17 @@ fn guard_requires_role() {
 #[test]
 fn guard_expired_session() {
     let fp = posvault_handler::types::Fingerprint::new("a".repeat(64)).unwrap();
-    let mut session = Session::with_duration(fp, Role::Admin, 0);
+    let session = Session::with_duration(fp, Role::Admin, 0);
+    assert!(session.is_expired());
     assert!(require_role(&session, &[Role::Admin]).is_err());
+}
+
+#[test]
+fn guard_refresh_session() {
+    let fp = posvault_handler::types::Fingerprint::new("a".repeat(64)).unwrap();
+    let mut session = Session::with_duration(fp, Role::Admin, 3600);
+    assert!(!session.is_expired());
     session.refresh();
+    assert!(!session.is_expired());
     assert!(require_role(&session, &[Role::Admin]).is_ok());
 }
