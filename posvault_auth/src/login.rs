@@ -9,7 +9,6 @@ use zeroize::Zeroizing;
 use crate::session::Session;
 
 pub const SESSION_DURATION_SECS: u64 = 28800;
-
 const TOTP_DRIFT_STEPS: i64 = 1;
 
 fn map_name_to_role(name: &str) -> Role {
@@ -54,6 +53,10 @@ pub fn login(
         return Err(PosVaultError::Auth("decrypted private key is empty".into()));
     }
 
+    if privkey_bytes.len() < 32 {
+        return Err(PosVaultError::Auth("private key too short".into()));
+    }
+
     let base32 = Base32String::new(totp_secret_base32)
         .map_err(|e| PosVaultError::Auth(format!("invalid TOTP secret: {}", e)))?;
     let secret = base32
@@ -84,7 +87,6 @@ pub fn login(
     }
 
     let pv_role = map_name_to_role(&age_identity.user_id.name);
-
     let fp_hex = age_identity.fingerprint.as_str();
     let pv_fingerprint =
         Fingerprint::new(fp_hex).map_err(|e| PosVaultError::Auth(e.to_string()))?;
