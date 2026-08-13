@@ -3,8 +3,14 @@ use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::{EventStore, SnapshotStore};
 use std::collections::HashMap;
 
+/// A simple materialized view state: stock items to quantities.
 pub type StockState = HashMap<String, u64>;
 
+/// Applies a stock delta event to the in-memory state.
+///
+/// The payload is expected to be a JSON tuple `(item, delta)` where delta may
+/// be negative. Negative deltas that would drive stock below zero are
+/// rejected.
 pub fn apply_stock_event(state: &mut Vec<u8>, payload: &[u8]) -> Result<()> {
     let mut current: StockState = if state.is_empty() {
         HashMap::new()
@@ -31,6 +37,9 @@ pub fn apply_stock_event(state: &mut Vec<u8>, payload: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Returns the current stock quantity for `item`.
+///
+/// If the cached snapshot is stale, this function rebuilds it.
 pub fn get_stock<S: EventStore + SnapshotStore>(
     engine: &mut QueryEngine<S>,
     decrypt: &dyn Fn(&[u8]) -> Result<Vec<u8>>,
@@ -49,11 +58,17 @@ pub fn get_stock<S: EventStore + SnapshotStore>(
     Ok(state.get(item).copied().unwrap_or(0))
 }
 
+/// Placeholder for daily sales aggregation.
+///
+/// This function is not yet implemented. It exists to demonstrate how
+/// additional queries could extend the engine.
 pub fn daily_sales<S: EventStore + SnapshotStore>(
     _engine: &mut QueryEngine<S>,
     _decrypt: &dyn Fn(&[u8]) -> Result<Vec<u8>>,
     _encrypt: &dyn Fn(&[u8]) -> Result<Vec<u8>>,
     _date: &str,
 ) -> Result<u64> {
-    unimplemented!("daily_sales not implemented yet")
+    Err(PosVaultError::NotFound(
+        "daily_sales is not implemented yet".into(),
+    ))
 }
