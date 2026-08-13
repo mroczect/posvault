@@ -1,10 +1,10 @@
-use bincode;
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::{EventStore, Signer};
 use posvault_handler::types::{EncryptedPayload, Event, EventId, Identity, Signature};
 use serde::Serialize;
 use std::fmt;
 
+/// Serializable subset of an event used for signing.
 #[derive(Serialize)]
 struct SignableEvent<'a> {
     id: &'a EventId,
@@ -13,6 +13,10 @@ struct SignableEvent<'a> {
     payload: &'a EncryptedPayload,
 }
 
+/// Wraps an [`EventStore`] and signs events before appending them.
+///
+/// The signature is computed over a JSON representation of the event's
+/// stable fields, excluding the signature itself.
 pub struct SignedEventStore<S: EventStore, G: Signer> {
     inner: S,
     signer: G,
@@ -20,6 +24,7 @@ pub struct SignedEventStore<S: EventStore, G: Signer> {
 }
 
 impl<S: EventStore, G: Signer> SignedEventStore<S, G> {
+    /// Creates a new signed event store with strict verification.
     pub fn new(inner: S, signer: G) -> Self {
         SignedEventStore {
             inner,
@@ -28,6 +33,7 @@ impl<S: EventStore, G: Signer> SignedEventStore<S, G> {
         }
     }
 
+    /// Creates a new signed event store that skips invalid events during reads.
     pub fn new_loose(inner: S, signer: G) -> Self {
         SignedEventStore {
             inner,
@@ -58,7 +64,7 @@ impl<S: EventStore, G: Signer> EventStore for SignedEventStore<S, G> {
             author: &event.author,
             payload: &event.payload,
         };
-        let data = bincode::serialize(&signable)
+        let data = serde_json::to_vec(&signable)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
         let signature_bytes = self.signer.sign(&data)?;
         event.signature = Signature::new(signature_bytes)?;
@@ -76,7 +82,7 @@ impl<S: EventStore, G: Signer> EventStore for SignedEventStore<S, G> {
                 author: &ev.author,
                 payload: &ev.payload,
             };
-            let data = bincode::serialize(&signable)
+            let data = serde_json::to_vec(&signable)
                 .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
             if self.signer.verify(&data, ev.signature.as_bytes()) {
                 valid_events.push(ev.clone());
