@@ -3,31 +3,79 @@ name: Publish to crates.io
 on:
   push:
     tags:
-      - "v*"
+      - "posvault@*"
+      - "posvault_auth@*"
+      - "posvault_crypto@*"
+      - "posvault_handler@*"
+      - "posvault_query@*"
+      - "posvault_sign@*"
+      - "posvault_store@*"
+      - "posvault_sync@*"
+
+# Grant write access to repository contents so the job can create releases
+permissions:
+  contents: write
 
 jobs:
-  publish-crate:
-    name: Publish ${{ matrix.crate }}
+  publish:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        crate:
-          - posvault_handler
-          - posvault_crypto
-          - posvault_auth
-          - posvault_query
-          - posvault_sign
-          - posvault_store
-          - posvault_sync
-          - posvault
+    environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
-      - name: Login to crates.io
-        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+      - name: Parse tag
+        id: parse
+        run: |
+          TAG="${{ github.ref_name }}"
+          CRATE_NAME=$(echo "$TAG" | cut -d'@' -f1)
+          VERSION=$(echo "$TAG" | cut -d'@' -f2)
+          if [ -z "$CRATE_NAME" ] || [ -z "$VERSION" ]; then
+            echo "Error: tag must be in format 'crate@version' (e.g., posvault_auth@0.1.0)"
+            exit 1
+          fi
+          echo "crate_name=$CRATE_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"      >> "$GITHUB_OUTPUT"
+          echo "Detected crate: $CRATE_NAME, version: $VERSION"
 
-      - name: Publish ${{ matrix.crate }}
-        run: cargo publish -p ${{ matrix.crate }}
+      - name: Verify Cargo.toml version
+        run: |
+          CRATE="${{ steps.parse.outputs.crate_name }}"
+          if [ ! -d "$CRATE" ]; then
+            echo "Error: directory '$CRATE' does not exist"
+            exit 1
+          fi
+          cd "$CRATE"
+          MANIFEST_VERSION=$(cargo pkgid | cut -d'#' -f2 | cut -d: -f1)
+          TAG_VERSION="${{ steps.parse.outputs.version }}"
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: tag version '$TAG_VERSION' != Cargo.toml version '$MANIFEST_VERSION'"
+            exit 1
+          fi
+          echo "Version verified: $MANIFEST_VERSION"
+
+      - name: Build & Test
+        run: cargo test -p "${{ steps.parse.outputs.crate_name }}" --all-targets
+
+      - name: Clippy
+        run: cargo clippy -p "${{ steps.parse.outputs.crate_name }}" --all-targets -- -D warnings
+
+      - name: Publish to crates.io
+        run: cargo publish -p "${{ steps.parse.outputs.crate_name }}"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          CRATE_NAME="${{ steps.parse.outputs.crate_name }}"
+          VERSION="${{ steps.parse.outputs.version }}"
+          gh release create "$TAG" \
+            --generate-notes \
+            --title "$CRATE_NAME v$VERSION"
