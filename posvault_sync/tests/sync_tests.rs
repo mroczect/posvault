@@ -1,4 +1,4 @@
-use libvctrl::domain::user::UserID;
+use libvctrl::UserID;
 use posvault_handler::traits::{ConflictResolver, Transport};
 use posvault_handler::types::BranchName;
 use posvault_store::PosVault;
@@ -22,36 +22,34 @@ fn create_author() -> UserID {
 #[test]
 fn test_create_store_branch() {
     let (_dir, vault) = setup_vault();
-    let mut guard = vault.store_ref().lock().unwrap();
-    let refs: &mut dyn libvctrl::storage::traits::RefStore = &mut *guard;
-    let branch = create_store_branch(refs, "tokomainan").unwrap();
+    let store_arc = vault.store_arc();
+    let mut guard = store_arc.lock().unwrap();
+    let branch = create_store_branch(&mut guard, "tokomainan").unwrap();
     assert_eq!(branch.as_str(), "store-tokomainan");
 
-    let current = current_branch(refs).unwrap().unwrap();
+    let current = current_branch(&guard).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-tokomainan");
 }
 
 #[test]
 fn test_checkout_branch() {
     let (_dir, vault) = setup_vault();
+    let store_arc = vault.store_arc();
 
     {
-        let mut guard = vault.store_ref().lock().unwrap();
-        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
-        create_store_branch(refs, "cabang1").unwrap();
+        let mut guard = store_arc.lock().unwrap();
+        create_store_branch(&mut guard, "cabang1").unwrap();
     }
 
     {
-        let mut guard = vault.store_ref().lock().unwrap();
-        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
-        create_store_branch(refs, "cabang2").unwrap();
+        let mut guard = store_arc.lock().unwrap();
+        create_store_branch(&mut guard, "cabang2").unwrap();
     }
 
     let branch = BranchName::new("store-cabang1").unwrap();
-    let mut guard = vault.store_ref().lock().unwrap();
-    let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
-    checkout_branch(refs, &branch).unwrap();
-    let current = current_branch(refs).unwrap().unwrap();
+    let mut guard = store_arc.lock().unwrap();
+    checkout_branch(&mut guard, &branch).unwrap();
+    let current = current_branch(&guard).unwrap().unwrap();
     assert_eq!(current.as_str(), "store-cabang1");
 }
 
@@ -115,11 +113,11 @@ fn test_file_transport_pull() {
 fn test_pull_and_merge_no_conflict() {
     let local_dir = TempDir::new().unwrap();
     let local_vault = PosVault::open(local_dir.path()).unwrap();
+    let local_arc = local_vault.store_arc();
 
     {
-        let mut guard = local_vault.store_ref().lock().unwrap();
-        let refs = &mut *guard as &mut dyn libvctrl::storage::traits::RefStore;
-        create_store_branch(refs, "toko1").unwrap();
+        let mut guard = local_arc.lock().unwrap();
+        create_store_branch(&mut guard, "toko1").unwrap();
     }
 
     let remote_dir = TempDir::new().unwrap();
