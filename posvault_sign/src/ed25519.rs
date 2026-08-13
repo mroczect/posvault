@@ -1,9 +1,15 @@
-use ed25519_dalek::{Signer as DalekSigner, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signer as DalekSigner, SigningKey, Verifier, VerifyingKey};
 use posvault_handler::errors::Result;
 use posvault_handler::traits::Signer;
-use rand_core::{OsRng, RngCore};
+use rand::TryRngCore;
+use rand::rngs::OsRng;
 use std::fmt;
 
+/// Concrete Ed25519 signer adapter.
+///
+/// Implements the [`Signer`] trait from `posvault_handler` using the
+/// `ed25519-dalek` crate. The signer holds a private [`SigningKey`] and its
+/// corresponding public [`VerifyingKey`].
 #[derive(Clone)]
 pub struct Ed25519Signer {
     signing_key: SigningKey,
@@ -11,6 +17,7 @@ pub struct Ed25519Signer {
 }
 
 impl Ed25519Signer {
+    /// Creates a new signer from an existing [`SigningKey`].
     pub fn new(signing_key: SigningKey) -> Self {
         let verifying_key = signing_key.verifying_key();
         Ed25519Signer {
@@ -19,6 +26,7 @@ impl Ed25519Signer {
         }
     }
 
+    /// Returns the public verifying key.
     pub fn verifying_key(&self) -> VerifyingKey {
         self.verifying_key
     }
@@ -42,7 +50,7 @@ impl Signer for Ed25519Signer {
             Err(_) => return false,
         };
         let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
-        self.signing_key.verify(data, &signature).is_ok()
+        self.verifying_key.verify(data, &signature).is_ok()
     }
 
     fn public_key_bytes(&self) -> &[u8] {
@@ -50,9 +58,14 @@ impl Signer for Ed25519Signer {
     }
 }
 
+/// Generates a new random Ed25519 keypair.
+///
+/// Uses the operating system's secure random number generator.
 pub fn generate_keypair() -> (SigningKey, VerifyingKey) {
     let mut secret = [0u8; 32];
-    OsRng.fill_bytes(&mut secret);
+    OsRng
+        .try_fill_bytes(&mut secret)
+        .expect("OS random number generator failed");
     let signing_key = SigningKey::from_bytes(&secret);
     let verifying_key = signing_key.verifying_key();
     (signing_key, verifying_key)
