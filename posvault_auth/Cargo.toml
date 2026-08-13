@@ -13,8 +13,8 @@ libage_auth_handler = "0.2"
 libage_otp = "0.2"
 zeroize = "1.9"
 uuid = { version = "1", features = ["v4"] }           
-ed25519-dalek = { version = "2", features = ["serde"] } 
-rand_core = "0.6"
+ed25519-dalek = { version = "3", features = ["serde"] } 
+rand_core = "0.10"
 hex = "0.4.3"
 
 [dev-dependencies]
