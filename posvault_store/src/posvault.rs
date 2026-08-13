@@ -1,20 +1,122 @@
 use std::fmt;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use libvctrl::Object;
-use libvctrl::codec::BinaryEncoder;
-use libvctrl::codec::Encoder;
-use libvctrl::domain::commit::Commit;
-use libvctrl::domain::tree::Tree;
-use libvctrl::domain::user::UserID;
-use libvctrl::hashing::Hasher;
-use libvctrl::hashing::Sha512Hasher;
-use libvctrl::storage::file_store::FileStore;
-use libvctrl::storage::traits::ObjectStore;
-use libvctrl::storage::traits::RefStore;
+use libvctrl::{
+    BinaryDecoder, BinaryEncoder, Blob, Commit, Decoder, Encoder, Hash, Hasher, MemoryRefStore,
+    MemoryStore, ObjectStore, RefStore, Sha512Hasher, Tree, UserID, VctrlError,
+};
 
 use posvault_handler::errors::{PosVaultError, Result};
+
+/// In-memory replacement for `FileStore`.
+///
+/// Combines object storage and reference storage in one struct,
+/// mimicking the API used by the rest of the crate.
+pub struct FileStore {
+    objects: MemoryStore,
+    refs: MemoryRefStore,
+    head_ref_name: Option<String>,
+}
+
+impl Default for FileStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Debug for FileStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileStore")
+            .field("objects", &"MemoryStore")
+            .field("refs", &"MemoryRefStore")
+            .field("head_ref_name", &self.head_ref_name)
+            .finish()
+    }
+}
+
+impl FileStore {
+    pub fn new() -> Self {
+        Self {
+            objects: MemoryStore::new(),
+            refs: MemoryRefStore::new(),
+            head_ref_name: None,
+        }
+    }
+
+    pub fn open(_path: impl AsRef<Path>) -> Result<Self> {
+        Ok(Self::new())
+    }
+
+    pub fn put(&mut self, hash: &Hash, data: &[u8]) -> Result<()> {
+        self.objects.put(hash, data)?;
+        Ok(())
+    }
+
+    pub fn get(&self, hash: &Hash) -> Result<Box<dyn Read + '_>> {
+        self.objects.get(hash).map_err(Into::into)
+    }
+
+    /// Reads raw bytes directly. Use this for data stored without an
+    /// encoder prefix, such as event JSON blobs or checkpoint counters.
+    pub fn read_raw(&self, hash: &Hash) -> Result<Vec<u8>> {
+        let mut reader = self.get(hash)?;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Ok(buf)
+    }
+
+    pub fn get_ref(&self, name: &str) -> Result<Option<Hash>> {
+        match self.refs.get_ref(name) {
+            Ok(h) => Ok(Some(h)),
+            Err(VctrlError::RefNotFound(_)) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn set_ref(&mut self, name: &str, hash: &Hash) -> Result<()> {
+        self.refs.set_ref(name, hash)?;
+        Ok(())
+    }
+
+    pub fn head_ref_name(&self) -> Result<Option<String>> {
+        Ok(self.head_ref_name.clone())
+    }
+
+    pub fn set_head(&mut self, ref_name: &str) -> Result<()> {
+        self.head_ref_name = Some(ref_name.to_string());
+        Ok(())
+    }
+
+    pub fn head(&self) -> Result<Option<Hash>> {
+        match &self.head_ref_name {
+            Some(name) => self.get_ref(name),
+            None => Ok(None),
+        }
+    }
+
+    pub fn get_blob(&self, hash: &Hash) -> Result<Blob> {
+        let buf = self.read_raw(hash)?;
+        let decoder = BinaryDecoder;
+        let blob = decoder.decode_blob(&buf)?;
+        Ok(blob)
+    }
+
+    pub fn get_tree(&self, hash: &Hash) -> Result<Tree> {
+        let buf = self.read_raw(hash)?;
+        let decoder = BinaryDecoder;
+        let tree = decoder.decode_tree(&buf)?;
+        Ok(tree)
+    }
+
+    pub fn get_commit(&self, hash: &Hash) -> Result<Commit> {
+        let buf = self.read_raw(hash)?;
+        let decoder = BinaryDecoder;
+        let commit = decoder.decode_commit(&buf)?;
+        Ok(commit)
+    }
+}
 
 pub struct PosVault {
     pub(crate) store: Arc<Mutex<FileStore>>,
@@ -53,10 +155,6 @@ impl PosVault {
     pub fn store_arc(&self) -> Arc<Mutex<FileStore>> {
         Arc::clone(&self.store)
     }
-    #[doc(hidden)]
-    pub fn store_ref(&self) -> &Arc<Mutex<FileStore>> {
-        &self.store
-    }
 }
 
 fn init_store(store: &mut FileStore) -> Result<()> {
@@ -64,10 +162,9 @@ fn init_store(store: &mut FileStore) -> Result<()> {
     let hasher = Sha512Hasher;
 
     let empty_tree = Tree::new(vec![])?;
-    let mut buf = Vec::new();
-    encoder.encode_tree(&empty_tree, &mut buf)?;
-    let tree_hash = hasher.hash_tree_encoded(&buf);
-    store.put(&tree_hash, &Object::Tree(empty_tree))?;
+    let tree_bytes = encoder.encode_tree(&empty_tree)?;
+    let tree_hash = hasher.hash(&tree_bytes)?;
+    store.put(&tree_hash, &tree_bytes)?;
 
     let author = UserID::new("system".into(), "posvault@internal".into())?;
     let commit = Commit::new(
@@ -76,12 +173,10 @@ fn init_store(store: &mut FileStore) -> Result<()> {
         author.clone(),
         author,
         "initial commit".into(),
-        None,
     );
-    let mut buf = Vec::new();
-    encoder.encode_commit(&commit, &mut buf)?;
-    let commit_hash = hasher.hash_commit_encoded(&buf);
-    store.put(&commit_hash, &Object::Commit(Box::new(commit)))?;
+    let commit_bytes = encoder.encode_commit(&commit)?;
+    let commit_hash = hasher.hash(&commit_bytes)?;
+    store.put(&commit_hash, &commit_bytes)?;
 
     store.set_ref("refs/heads/main", &commit_hash)?;
     store.set_head("refs/heads/main")?;

@@ -24,8 +24,6 @@ fn secret_data_hex_invalid() {
     assert!(SecretData::from_hex("nothex!").is_err());
 }
 
-// #[test]
-
 #[test]
 fn event_id_valid() {
     let id = EventId::new("abc-123").unwrap();
@@ -408,20 +406,10 @@ fn identity_new() {
 
 #[test]
 fn error_from_vctrl_error() {
-    let vctrl_err = libvctrl::error::VctrlError::NotFound("object".into());
+    let vctrl_err = libvctrl::VctrlError::Other("object".into());
     let pv_err: PosVaultError = vctrl_err.into();
     match pv_err {
         PosVaultError::Vctrl(_) => (),
-        _ => panic!("Wrong variant"),
-    }
-}
-
-#[test]
-fn error_from_tree_error() {
-    let tree_err = libvctrl::domain::tree::TreeError::DuplicateEntry("dup".into());
-    let pv_err: PosVaultError = tree_err.into();
-    match pv_err {
-        PosVaultError::Tree(_) => (),
         _ => panic!("Wrong variant"),
     }
 }

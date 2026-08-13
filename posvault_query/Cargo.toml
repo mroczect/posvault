@@ -8,8 +8,7 @@ repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
 libvctrl = "2.1.2"
-posvault_handler = { path = "../posvault_handler", version = "0.2.1" }
-posvault_store = { path = "../posvault_store", version = "0.2.1" }
+posvault_handler = { path = "../posvault_handler", version = "1.0.0" }
+posvault_store = { path = "../posvault_store", version = "1.0.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "2.0"

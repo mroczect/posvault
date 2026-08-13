@@ -1,6 +1,11 @@
 use posvault_handler::errors::Result;
 use posvault_handler::traits::ConflictResolver;
 
+/// Simple line-based conflict resolver for CSV-like data.
+///
+/// If either side matches the base, the other side is accepted unchanged.
+/// Otherwise the resolver returns a union of unique lines from both sides,
+/// with our lines first.
 #[derive(Debug)]
 pub struct UnionCsvResolver;
 

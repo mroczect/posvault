@@ -1,4 +1,4 @@
-use libvctrl::domain::tree::TreeError;
+use libvctrl::VctrlError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -34,13 +34,10 @@ pub enum PosVaultError {
     Io(#[from] std::io::Error),
 
     #[error("Vctrl error: {0}")]
-    Vctrl(#[from] libvctrl::error::VctrlError),
+    Vctrl(#[from] VctrlError),
 
     #[error("External error: {0}")]
     External(Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("Tree error: {0}")]
-    Tree(#[from] TreeError),
 }
 
 pub type Result<T> = std::result::Result<T, PosVaultError>;
