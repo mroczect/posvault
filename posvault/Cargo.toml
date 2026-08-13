@@ -1,6 +1,6 @@
 [package]
 name = "posvault"
-version = "0.2.3"
+version = "1.0.0"
 edition = "2024"
 description = "Encrypted, version-controlled POS database framework"
 license = "MIT"
@@ -10,13 +10,13 @@ keywords = ["pos", "database", "version-control", "encryption", "event-sourcing"
 categories = ["database", "cryptography", "development-tools"]
 
 [dependencies]
-posvault_handler = { path = "../posvault_handler", version = "0.2.1" }
-posvault_store = { path = "../posvault_store", version = "0.2.1" }
-posvault_crypto = { path = "../posvault_crypto", version = "0.2.1" }
-posvault_auth = { path = "../posvault_auth", version = "0.2.1" }
-posvault_sign = { path = "../posvault_sign", version = "0.2.1" }
-posvault_sync = { path = "../posvault_sync", version = "0.2.1" }
-posvault_query = { path = "../posvault_query", version = "0.2.1" }
+posvault_handler = { path = "../posvault_handler", version = "1.0.0" }
+posvault_store = { path = "../posvault_store", version = "1.0.0" }
+posvault_crypto = { path = "../posvault_crypto", version = "0.2.3" }
+posvault_auth = { path = "../posvault_auth", version = "0.2.3" }
+posvault_sign = { path = "../posvault_sign", version = "1.0.0" }
+posvault_sync = { path = "../posvault_sync", version = "1.0.0" }
+posvault_query = { path = "../posvault_query", version = "0.2.3" }
 libvctrl = "2.1"
 age-credentials = "1.0"
 ed25519-dalek = { version = "3", features = ["serde"] }
