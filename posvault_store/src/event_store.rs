@@ -1,22 +1,15 @@
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use libvctrl::Object;
-use libvctrl::codec::BinaryEncoder;
-use libvctrl::codec::Encoder;
-use libvctrl::domain::blob::Blob;
-use libvctrl::domain::commit::Commit;
-use libvctrl::domain::tree::{EntryKind, Tree, TreeEntry};
-use libvctrl::domain::user::UserID;
-use libvctrl::hashing::Hasher;
-use libvctrl::hashing::Sha512Hasher;
-use libvctrl::storage::file_store::FileStore;
-use libvctrl::storage::traits::ObjectStore;
-use libvctrl::storage::traits::{ObjectStoreExt, RefStore};
+use libvctrl::{
+    BinaryEncoder, Commit, Encoder, EntryKind, Hasher, Sha512Hasher, Tree, TreeEntry, UserID,
+};
 
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::EventStore;
 use posvault_handler::types::Event;
+
+use crate::FileStore;
 
 const BUCKET_SIZE: u64 = 1000;
 
@@ -42,15 +35,15 @@ impl VctrlEventStore {
             .head()?
             .ok_or(PosVaultError::NotFound("HEAD not found".into()))?;
         let head_commit = store.get_commit(&head_commit_hash)?;
-        let root_tree = store.get_tree(&head_commit.tree)?;
+        let root_tree = store.get_tree(head_commit.tree())?;
 
         if let Some(entry) = root_tree
             .entries()
             .iter()
-            .find(|e| e.name == "checkpoint" && e.kind == EntryKind::Blob)
+            .find(|e| e.name() == "checkpoint" && e.kind() == EntryKind::Blob)
         {
-            let blob = store.get_blob(&entry.hash)?;
-            deserialize_counter(&blob)
+            let raw = store.read_raw(entry.hash())?;
+            deserialize_counter(&raw)
         } else {
             Ok(0)
         }
@@ -70,22 +63,21 @@ impl EventStore for VctrlEventStore {
 
         let event_bytes =
             serde_json::to_vec(&event).map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let event_blob = Blob::new(event_bytes);
-        let event_blob_hash = Sha512Hasher.hash_blob(event_blob.as_bytes());
-        store.put(&event_blob_hash, &Object::Blob(event_blob))?;
+        let event_hash = Sha512Hasher.hash(&event_bytes)?;
+        store.put(&event_hash, &event_bytes)?;
 
         let head_commit_hash = store
             .head()?
             .ok_or(PosVaultError::NotFound("HEAD not found".into()))?;
         let head_commit = store.get_commit(&head_commit_hash)?;
-        let root_tree = store.get_tree(&head_commit.tree)?;
+        let root_tree = store.get_tree(head_commit.tree())?;
 
         let mut root_entries: Vec<TreeEntry> = root_tree.entries().to_vec();
 
-        let cp_blob = Blob::new(serialize_counter(new_counter));
-        let cp_hash = Sha512Hasher.hash_blob(cp_blob.as_bytes());
-        store.put(&cp_hash, &Object::Blob(cp_blob))?;
-        root_entries.retain(|e| e.name != "checkpoint");
+        let cp_bytes = serialize_counter(new_counter);
+        let cp_hash = Sha512Hasher.hash(&cp_bytes)?;
+        store.put(&cp_hash, &cp_bytes)?;
+        root_entries.retain(|e| e.name() != "checkpoint");
         root_entries.push(TreeEntry::new(
             "checkpoint".into(),
             EntryKind::Blob,
@@ -95,36 +87,31 @@ impl EventStore for VctrlEventStore {
         let bucket_name = format!("events-{}", bucket);
         let mut bucket_tree = if let Some(existing) = root_entries
             .iter()
-            .find(|e| e.name == bucket_name && e.kind == EntryKind::Tree)
+            .find(|e| e.name() == bucket_name && e.kind() == EntryKind::Tree)
         {
-            store.get_tree(&existing.hash)?
+            store.get_tree(existing.hash())?
         } else {
             Tree::new(vec![])?
         };
 
         let index_name = format!("{:016x}", new_counter);
-        bucket_tree = {
-            let mut entries = bucket_tree.entries().to_vec();
-            entries.push(TreeEntry::new(
-                index_name,
-                EntryKind::Blob,
-                event_blob_hash,
-            )?);
-            Tree::new(entries)?
-        };
-        let mut buf = Vec::new();
-        BinaryEncoder.encode_tree(&bucket_tree, &mut buf)?;
-        let bucket_hash = Sha512Hasher.hash_tree_encoded(&buf);
-        store.put(&bucket_hash, &Object::Tree(bucket_tree))?;
+        let mut bucket_entries = bucket_tree.entries().to_vec();
+        bucket_entries.push(TreeEntry::new(index_name, EntryKind::Blob, event_hash)?);
+        bucket_entries.sort_by(|a, b| a.name().cmp(b.name()));
+        bucket_tree = Tree::new(bucket_entries)?;
 
-        root_entries.retain(|e| e.name != bucket_name);
+        let bucket_bytes = BinaryEncoder.encode_tree(&bucket_tree)?;
+        let bucket_hash = Sha512Hasher.hash(&bucket_bytes)?;
+        store.put(&bucket_hash, &bucket_bytes)?;
+
+        root_entries.retain(|e| e.name() != bucket_name);
         root_entries.push(TreeEntry::new(bucket_name, EntryKind::Tree, bucket_hash)?);
+        root_entries.sort_by(|a, b| a.name().cmp(b.name()));
 
         let new_root_tree = Tree::new(root_entries)?;
-        let mut buf = Vec::new();
-        BinaryEncoder.encode_tree(&new_root_tree, &mut buf)?;
-        let new_tree_hash = Sha512Hasher.hash_tree_encoded(&buf);
-        store.put(&new_tree_hash, &Object::Tree(new_root_tree))?;
+        let new_tree_bytes = BinaryEncoder.encode_tree(&new_root_tree)?;
+        let new_tree_hash = Sha512Hasher.hash(&new_tree_bytes)?;
+        store.put(&new_tree_hash, &new_tree_bytes)?;
 
         let author = UserID::new(
             format!(
@@ -140,12 +127,10 @@ impl EventStore for VctrlEventStore {
             author.clone(),
             author,
             format!("append event #{}", new_counter),
-            None,
         );
-        let mut buf = Vec::new();
-        BinaryEncoder.encode_commit(&commit, &mut buf)?;
-        let commit_hash = Sha512Hasher.hash_commit_encoded(&buf);
-        store.put(&commit_hash, &Object::Commit(Box::new(commit)))?;
+        let commit_bytes = BinaryEncoder.encode_commit(&commit)?;
+        let commit_hash = Sha512Hasher.hash(&commit_bytes)?;
+        store.put(&commit_hash, &commit_bytes)?;
         store.set_ref("refs/heads/main", &commit_hash)?;
         store.set_head("refs/heads/main")?;
 
@@ -161,25 +146,25 @@ impl EventStore for VctrlEventStore {
             .head()?
             .ok_or(PosVaultError::NotFound("HEAD not found".into()))?;
         let head_commit = store.get_commit(&head_commit_hash)?;
-        let root_tree = store.get_tree(&head_commit.tree)?;
+        let root_tree = store.get_tree(head_commit.tree())?;
 
         let mut events_with_index: Vec<(u64, Event)> = Vec::new();
 
         for entry in root_tree.entries() {
-            if entry.name.starts_with("events-") && entry.kind == EntryKind::Tree {
-                let bucket_str = &entry.name[7..];
+            if entry.name().starts_with("events-") && entry.kind() == EntryKind::Tree {
+                let bucket_str = &entry.name()[7..];
                 if let Ok(bucket) = bucket_str.parse::<u64>() {
                     if bucket < checkpoint / BUCKET_SIZE {
                         continue;
                     }
-                    let bucket_tree = store.get_tree(&entry.hash)?;
+                    let bucket_tree = store.get_tree(entry.hash())?;
                     for be in bucket_tree.entries() {
-                        if be.kind == EntryKind::Blob
-                            && let Ok(index) = u64::from_str_radix(&be.name, 16)
+                        if be.kind() == EntryKind::Blob
+                            && let Ok(index) = u64::from_str_radix(be.name(), 16)
                             && index > checkpoint
                         {
-                            let blob = store.get_blob(&be.hash)?;
-                            let event: Event = serde_json::from_slice(&blob)
+                            let raw = store.read_raw(be.hash())?;
+                            let event: Event = serde_json::from_slice(&raw)
                                 .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
                             events_with_index.push((index, event));
                         }
