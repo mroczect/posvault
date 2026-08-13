@@ -1,16 +1,22 @@
-use libvctrl::hashing::{Hasher, Sha512Hasher};
+use libvctrl::{Hasher, Sha512Hasher};
 use posvault_handler::errors::Result;
 use posvault_handler::traits::{EventStore, SnapshotStore};
 use posvault_handler::types::{CommitHash, EncryptedPayload, Snapshot};
 
 use crate::cache::SnapshotCache;
 
+/// Materialized view engine.
+///
+/// `QueryEngine` rebuilds an encrypted snapshot from an event store and
+/// caches the result. It supports incremental rebuilds: if a previous
+/// snapshot exists, only events after its checkpoint are replayed.
 pub struct QueryEngine<S: EventStore + SnapshotStore> {
     store: S,
     cache: SnapshotCache,
 }
 
 impl<S: EventStore + SnapshotStore> QueryEngine<S> {
+    /// Creates a new query engine backed by `store`.
     pub fn new(store: S) -> Self {
         QueryEngine {
             store,
@@ -18,6 +24,18 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
         }
     }
 
+    /// Rebuilds the snapshot from persisted events and stores it.
+    ///
+    /// The engine performs the following steps:
+    /// 1. Load the latest snapshot, if any, to determine the start checkpoint.
+    /// 2. Replay all events after that checkpoint through `apply_event`.
+    /// 3. Encrypt the resulting state with `encrypt`.
+    /// 4. Hash the checkpoint and encrypted state to produce a content hash.
+    /// 5. Save the snapshot and update the cache.
+    ///
+    /// If there are no events and no previous snapshot, the snapshot version
+    /// is set to 1 to satisfy the validation rules of
+    /// [`Snapshot::new`](posvault_handler::types::Snapshot::new).
     pub fn rebuild_snapshot<F, D, E>(
         &mut self,
         decrypt: D,
@@ -45,15 +63,6 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
 
         let latest_checkpoint = self.store.latest_checkpoint()?;
 
-        if latest_checkpoint == 0 {
-            let snapshot = Snapshot::new(
-                0,
-                EncryptedPayload::new(encrypt(&state)?)?,
-                CommitHash::from_bytes([1u8; 64]),
-            )?;
-            return Ok(snapshot);
-        }
-
         let encrypted_state = encrypt(&state)?;
         let encrypted_payload = EncryptedPayload::new(encrypted_state)?;
 
@@ -61,7 +70,7 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
         let mut data = Vec::new();
         data.extend_from_slice(&latest_checkpoint.to_be_bytes());
         data.extend_from_slice(encrypted_payload.as_bytes());
-        let hash_value = hasher.hash_blob(&data);
+        let hash_value = hasher.hash(&data)?;
 
         let hash_bytes: [u8; 64] = {
             let mut arr = [0u8; 64];
@@ -71,17 +80,29 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
 
         let hash = CommitHash::from_bytes(hash_bytes);
 
-        let snapshot = Snapshot::new(latest_checkpoint, encrypted_payload, hash)?;
+        // Ensure a valid snapshot version even when there are no events yet.
+        let snapshot_version = if latest_checkpoint == 0 {
+            1
+        } else {
+            latest_checkpoint
+        };
+
+        let snapshot = Snapshot::new(snapshot_version, encrypted_payload, hash)?;
 
         self.store.save_snapshot(snapshot.clone())?;
         self.cache.set(snapshot.clone());
         Ok(snapshot)
     }
 
+    /// Returns the cached snapshot, if any.
     pub fn get_cached_snapshot(&self) -> Option<Snapshot> {
         self.cache.get()
     }
 
+    /// Checks whether the cached snapshot is stale.
+    ///
+    /// Returns `true` if no snapshot is cached or if the latest checkpoint is
+    /// greater than the cached snapshot version.
     pub fn needs_rebuild(&self) -> Result<bool> {
         let latest = self.store.latest_checkpoint()?;
         match self.cache.get() {
@@ -90,6 +111,7 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
         }
     }
 
+    /// Invalidates the cached snapshot.
     pub fn invalidate_cache(&self) {
         self.cache.invalidate();
     }
