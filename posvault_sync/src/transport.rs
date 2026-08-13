@@ -3,6 +3,10 @@ use posvault_handler::traits::Transport;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Filesystem-based transport for local synchronization.
+///
+/// Copies files recursively between two directory paths. This is intended
+/// for testing and single-machine workflows, not for remote network use.
 #[derive(Debug)]
 pub struct FileTransport {
     local_store_path: PathBuf,
@@ -10,6 +14,7 @@ pub struct FileTransport {
 }
 
 impl FileTransport {
+    /// Creates a new transport with explicit local and remote paths.
     pub fn new(local: impl AsRef<Path>, remote: impl AsRef<Path>) -> Self {
         FileTransport {
             local_store_path: local.as_ref().to_path_buf(),
