@@ -1,6 +1,6 @@
 [package]
 name = "posvault_handler"
-version = "0.2.1"
+version = "0.2.3"
 edition = "2024"
 description = "Core traits, error types, and validated wrappers for the posvault workspace"
 authors = ["mroczect <mroczect@proton.me>"]

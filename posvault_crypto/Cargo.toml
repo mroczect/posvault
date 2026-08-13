@@ -1,13 +1,13 @@
 [package]
 name = "posvault_crypto"
-version = "0.2.1"
+version = "0.2.3"
 edition = "2024"
 description = "Transparent age encryption for posvault events"
 license = "MIT"
 repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
-posvault_handler = { path = "../posvault_handler", version = "0.2.1" }
+posvault_handler = { path = "../posvault_handler", version = "0.2.3" }
 librage = "1.1"
 age = "0.12"
 serde_json = "1.0"

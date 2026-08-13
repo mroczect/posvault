@@ -1,6 +1,6 @@
 [package]
 name = "posvault_query"
-version = "0.2.1"
+version = "0.2.3"
 edition = "2024"
 description = "Query engine and materialized views for posvault"
 license = "MIT"
