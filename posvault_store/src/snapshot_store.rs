@@ -2,17 +2,13 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use libvctrl::Object;
-use libvctrl::domain::blob::Blob;
-use libvctrl::hashing::Hasher;
-use libvctrl::hashing::Sha512Hasher;
-use libvctrl::storage::file_store::FileStore;
-use libvctrl::storage::traits::ObjectStore;
-use libvctrl::storage::traits::{ObjectStoreExt, RefStore};
+use libvctrl::{Hasher, Sha512Hasher};
 
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::traits::SnapshotStore;
 use posvault_handler::types::Snapshot;
+
+use crate::FileStore;
 
 pub struct VctrlSnapshotStore {
     store: Arc<Mutex<FileStore>>,
@@ -48,9 +44,8 @@ impl SnapshotStore for VctrlSnapshotStore {
 
         let bytes = serde_json::to_vec(&snapshot)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let blob = Blob::new(bytes);
-        let hash = Sha512Hasher.hash_blob(blob.as_bytes());
-        store.put(&hash, &Object::Blob(blob))?;
+        let hash = Sha512Hasher.hash(&bytes)?;
+        store.put(&hash, &bytes)?;
 
         let ts = Self::current_timestamp();
         let ref_name = format!("refs/snapshots/{}", ts);
@@ -69,8 +64,8 @@ impl SnapshotStore for VctrlSnapshotStore {
             Some(h) => h,
             None => return Ok(None),
         };
-        let blob = store.get_blob(&hash)?;
-        let snapshot: Snapshot = serde_json::from_slice(&blob)
+        let raw = store.read_raw(&hash)?;
+        let snapshot: Snapshot = serde_json::from_slice(&raw)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
         Ok(Some(snapshot))
     }
