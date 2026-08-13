@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
-posvault_handler = { path = "../posvault_handler", version = "2.0.0" }
+posvault_handler = { path = "../posvault_handler", version = "2.0.1" }
 librage = "1.1"
 age = "0.12"
 serde_json = "1.0"
