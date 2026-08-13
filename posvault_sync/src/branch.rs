@@ -1,36 +1,50 @@
-use libvctrl::storage::traits::RefStore;
 use posvault_handler::errors::{PosVaultError, Result};
 use posvault_handler::types::BranchName;
+use posvault_store::FileStore;
 
-pub fn create_store_branch(refs: &mut dyn RefStore, store_id: &str) -> Result<BranchName> {
+/// Creates a new branch for a store and switches HEAD to it.
+///
+/// The branch name is derived from `store_id` and is always placed under
+/// `refs/heads/`. The new branch points to the current HEAD commit.
+pub fn create_store_branch(store: &mut FileStore, store_id: &str) -> Result<BranchName> {
     let branch_name = format!("refs/heads/store-{}", store_id);
-    let current_head = refs
+    let current_head = store
         .head()?
         .ok_or_else(|| PosVaultError::NotFound("HEAD not found".into()))?;
 
-    refs.set_ref(&branch_name, &current_head)
+    store
+        .set_ref(&branch_name, &current_head)
         .map_err(|e| PosVaultError::Storage(e.to_string()))?;
-    refs.set_head(&branch_name)
+    store
+        .set_head(&branch_name)
         .map_err(|e| PosVaultError::Storage(e.to_string()))?;
 
     BranchName::new(branch_name.trim_start_matches("refs/heads/"))
 }
 
-pub fn checkout_branch(refs: &mut dyn RefStore, branch_name: &BranchName) -> Result<()> {
+/// Switches HEAD to the given branch.
+///
+/// Fails if the branch does not exist.
+pub fn checkout_branch(store: &mut FileStore, branch_name: &BranchName) -> Result<()> {
     let full_name = format!("refs/heads/{}", branch_name.as_str());
-    refs.get_ref(&full_name)
+    store
+        .get_ref(&full_name)
         .map_err(|e| PosVaultError::Storage(e.to_string()))?
         .ok_or_else(|| {
             PosVaultError::NotFound(format!("branch '{}' not found", branch_name.as_str()))
         })?;
 
-    refs.set_head(&full_name)
+    store
+        .set_head(&full_name)
         .map_err(|e| PosVaultError::Storage(e.to_string()))?;
     Ok(())
 }
 
-pub fn current_branch(refs: &dyn RefStore) -> Result<Option<BranchName>> {
-    let head_ref = refs
+/// Returns the currently checked-out branch, if any.
+///
+/// The returned name is the short branch name without `refs/heads/`.
+pub fn current_branch(store: &FileStore) -> Result<Option<BranchName>> {
+    let head_ref = store
         .head_ref_name()
         .map_err(|e| PosVaultError::Storage(e.to_string()))?;
     match head_ref {
