@@ -1,13 +1,13 @@
 [package]
 name = "posvault_store"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 description = "Event store implementation backed by libvctrl"
 license = "MIT"
 repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
-posvault_handler = { path = "../posvault_handler", version = "1.0.0" }
+posvault_handler = { path = "../posvault_handler", version = "2.0.0" }
 libvctrl = "2.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
