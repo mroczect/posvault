@@ -44,7 +44,7 @@ impl SnapshotStore for VctrlSnapshotStore {
 
         let bytes = serde_json::to_vec(&snapshot)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let hash = Sha512Hasher.hash(&bytes)?;
+        let hash = Sha512Hasher.hash(bytes.as_slice())?;
         store.put(&hash, &bytes)?;
 
         let ts = Self::current_timestamp();
