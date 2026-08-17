@@ -406,7 +406,7 @@ fn identity_new() {
 
 #[test]
 fn error_from_vctrl_error() {
-    let vctrl_err = libvctrl::VctrlError::Other("object".into());
+    let vctrl_err = libvctrl_handler::VctrlError::Other("object".into());
     let pv_err: PosVaultError = vctrl_err.into();
     match pv_err {
         PosVaultError::Vctrl(_) => (),
