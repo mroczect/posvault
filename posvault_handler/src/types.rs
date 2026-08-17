@@ -17,11 +17,11 @@ impl SecretData {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        self.0.as_slice()
     }
 
     pub fn to_hex(&self) -> String {
-        hex::encode(&self.0)
+        hex::encode(self.0.as_slice())
     }
 
     pub fn from_hex(hex_str: &str) -> Result<Self> {
@@ -140,7 +140,7 @@ impl Signature {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        self.0.as_slice()
     }
 }
 
@@ -184,7 +184,7 @@ impl EncryptedPayload {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        self.0.as_slice()
     }
 }
 
@@ -260,12 +260,17 @@ pub struct Recipient(String);
 impl Recipient {
     pub fn new(key: impl Into<String>) -> Result<Self> {
         let key = key.into();
-        if !key.starts_with("age1") || key.len() <= 4 || key.len() > 512 {
+        let rest = key.strip_prefix("age1").ok_or_else(|| {
+            PosVaultError::InvalidInput("Kunci publik age harus diawali 'age1'".to_string())
+        })?;
+
+        if rest.is_empty() || rest.len() > 508 {
             return Err(PosVaultError::InvalidInput(
-                "Kunci publik age tidak valid (prefix atau panjang)".to_string(),
+                "Kunci publik age panjang tidak valid".to_string(),
             ));
         }
-        if !key[4..]
+
+        if !rest
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         {
@@ -273,6 +278,7 @@ impl Recipient {
                 "Kunci publik age mengandung karakter tidak valid".to_string(),
             ));
         }
+
         Ok(Recipient(key))
     }
 

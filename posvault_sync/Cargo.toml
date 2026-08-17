@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/mroczect/posvault"
 
 [dependencies]
-libvctrl = "2.1.2"
+libvctrl = "2.1.3"
 posvault_handler = { path = "../posvault_handler", version = "2.0.2" }
 posvault_store = { path = "../posvault_store", version = "2.0.2" }
 

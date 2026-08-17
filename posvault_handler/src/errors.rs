@@ -1,4 +1,4 @@
-use libvctrl::VctrlError;
+use libvctrl_handler::VctrlError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

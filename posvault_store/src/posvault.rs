@@ -54,7 +54,7 @@ impl FileStore {
         Ok(())
     }
 
-    pub fn get(&self, hash: &Hash) -> Result<Box<dyn Read + '_>> {
+    pub fn get(&self, hash: &Hash) -> Result<Box<dyn Read + Send + '_>> {
         self.objects.get(hash).map_err(Into::into)
     }
 
@@ -99,21 +99,21 @@ impl FileStore {
     pub fn get_blob(&self, hash: &Hash) -> Result<Blob> {
         let buf = self.read_raw(hash)?;
         let decoder = BinaryDecoder;
-        let blob = decoder.decode_blob(&buf)?;
+        let blob = decoder.decode_blob(buf.as_slice())?;
         Ok(blob)
     }
 
     pub fn get_tree(&self, hash: &Hash) -> Result<Tree> {
         let buf = self.read_raw(hash)?;
         let decoder = BinaryDecoder;
-        let tree = decoder.decode_tree(&buf)?;
+        let tree = decoder.decode_tree(buf.as_slice())?;
         Ok(tree)
     }
 
     pub fn get_commit(&self, hash: &Hash) -> Result<Commit> {
         let buf = self.read_raw(hash)?;
         let decoder = BinaryDecoder;
-        let commit = decoder.decode_commit(&buf)?;
+        let commit = decoder.decode_commit(buf.as_slice())?;
         Ok(commit)
     }
 }
@@ -162,8 +162,9 @@ fn init_store(store: &mut FileStore) -> Result<()> {
     let hasher = Sha512Hasher;
 
     let empty_tree = Tree::new(vec![])?;
-    let tree_bytes = encoder.encode_tree(&empty_tree)?;
-    let tree_hash = hasher.hash(&tree_bytes)?;
+    let mut tree_bytes = Vec::new();
+    encoder.encode_tree(&empty_tree, &mut tree_bytes)?;
+    let tree_hash = hasher.hash(tree_bytes.as_slice())?;
     store.put(&tree_hash, &tree_bytes)?;
 
     let author = UserID::new("system".into(), "posvault@internal".into())?;
@@ -173,9 +174,10 @@ fn init_store(store: &mut FileStore) -> Result<()> {
         author.clone(),
         author,
         "initial commit".into(),
-    );
-    let commit_bytes = encoder.encode_commit(&commit)?;
-    let commit_hash = hasher.hash(&commit_bytes)?;
+    )?;
+    let mut commit_bytes = Vec::new();
+    encoder.encode_commit(&commit, &mut commit_bytes)?;
+    let commit_hash = hasher.hash(commit_bytes.as_slice())?;
     store.put(&commit_hash, &commit_bytes)?;
 
     store.set_ref("refs/heads/main", &commit_hash)?;

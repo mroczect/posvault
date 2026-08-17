@@ -50,8 +50,9 @@ impl VctrlJournal {
         let hasher = Sha512Hasher;
 
         let empty_tree = Tree::new(vec![])?;
-        let tree_bytes = encoder.encode_tree(&empty_tree)?;
-        let tree_hash = hasher.hash(&tree_bytes)?;
+        let mut tree_bytes = Vec::new();
+        encoder.encode_tree(&empty_tree, &mut tree_bytes)?;
+        let tree_hash = hasher.hash(tree_bytes.as_slice())?;
         store.put(&tree_hash, &tree_bytes)?;
 
         let user = UserID::new("system".into(), "journal@internal".into())?;
@@ -61,9 +62,10 @@ impl VctrlJournal {
             user.clone(),
             user,
             "initialize journal".into(),
-        );
-        let commit_bytes = encoder.encode_commit(&commit)?;
-        let commit_hash = hasher.hash(&commit_bytes)?;
+        )?;
+        let mut commit_bytes = Vec::new();
+        encoder.encode_commit(&commit, &mut commit_bytes)?;
+        let commit_hash = hasher.hash(commit_bytes.as_slice())?;
         store.put(&commit_hash, &commit_bytes)?;
         store.set_ref(journal_ref, &commit_hash)?;
         Ok(commit_hash)
@@ -104,7 +106,7 @@ impl VctrlJournal {
         let next_seq = archive_entries.len() as u64;
         let archive_bytes = serde_json::to_vec(&unarchived)
             .map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let archive_hash = Sha512Hasher.hash(&archive_bytes)?;
+        let archive_hash = Sha512Hasher.hash(archive_bytes.as_slice())?;
         store.put(&archive_hash, &archive_bytes)?;
         archive_entries.push(TreeEntry::new(
             format!("archive-{}", next_seq),
@@ -114,8 +116,9 @@ impl VctrlJournal {
         archive_entries.sort_by(|a, b| a.name().cmp(b.name()));
 
         let new_tree = Tree::new(archive_entries)?;
-        let new_tree_bytes = BinaryEncoder.encode_tree(&new_tree)?;
-        let new_tree_hash = Sha512Hasher.hash(&new_tree_bytes)?;
+        let mut new_tree_bytes = Vec::new();
+        BinaryEncoder.encode_tree(&new_tree, &mut new_tree_bytes)?;
+        let new_tree_hash = Sha512Hasher.hash(new_tree_bytes.as_slice())?;
         store.put(&new_tree_hash, &new_tree_bytes)?;
 
         let user = UserID::new("system".into(), "compaction@internal".into())?;
@@ -125,9 +128,10 @@ impl VctrlJournal {
             user.clone(),
             user,
             "journal compaction".into(),
-        );
-        let commit_bytes = BinaryEncoder.encode_commit(&commit)?;
-        let commit_hash = Sha512Hasher.hash(&commit_bytes)?;
+        )?;
+        let mut commit_bytes = Vec::new();
+        BinaryEncoder.encode_commit(&commit, &mut commit_bytes)?;
+        let commit_hash = Sha512Hasher.hash(commit_bytes.as_slice())?;
         store.put(&commit_hash, &commit_bytes)?;
         store.set_ref(journal_ref, &commit_hash)?;
         Ok(())
@@ -167,7 +171,7 @@ impl Journal for VctrlJournal {
 
         let entry_bytes =
             serde_json::to_vec(&entry).map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let blob_hash = Sha512Hasher.hash(&entry_bytes)?;
+        let blob_hash = Sha512Hasher.hash(entry_bytes.as_slice())?;
         store.put(&blob_hash, &entry_bytes)?;
 
         let tree_entry = TreeEntry::new(
@@ -180,8 +184,9 @@ impl Journal for VctrlJournal {
         new_entries.sort_by(|a, b| a.name().cmp(b.name()));
         let new_tree = Tree::new(new_entries)?;
 
-        let new_tree_bytes = BinaryEncoder.encode_tree(&new_tree)?;
-        let new_tree_hash = Sha512Hasher.hash(&new_tree_bytes)?;
+        let mut new_tree_bytes = Vec::new();
+        BinaryEncoder.encode_tree(&new_tree, &mut new_tree_bytes)?;
+        let new_tree_hash = Sha512Hasher.hash(new_tree_bytes.as_slice())?;
         store.put(&new_tree_hash, &new_tree_bytes)?;
 
         let user = UserID::new(
@@ -194,9 +199,10 @@ impl Journal for VctrlJournal {
             user.clone(),
             user,
             entry.action.clone(),
-        );
-        let commit_bytes = BinaryEncoder.encode_commit(&commit)?;
-        let new_commit_hash = Sha512Hasher.hash(&commit_bytes)?;
+        )?;
+        let mut commit_bytes = Vec::new();
+        BinaryEncoder.encode_commit(&commit, &mut commit_bytes)?;
+        let new_commit_hash = Sha512Hasher.hash(commit_bytes.as_slice())?;
         store.put(&new_commit_hash, &commit_bytes)?;
         store.set_ref("refs/journal", &new_commit_hash)?;
 

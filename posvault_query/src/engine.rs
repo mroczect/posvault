@@ -70,7 +70,7 @@ impl<S: EventStore + SnapshotStore> QueryEngine<S> {
         let mut data = Vec::new();
         data.extend_from_slice(&latest_checkpoint.to_be_bytes());
         data.extend_from_slice(encrypted_payload.as_bytes());
-        let hash_value = hasher.hash(&data)?;
+        let hash_value = hasher.hash(data.as_slice())?;
 
         let hash_bytes: [u8; 64] = {
             let mut arr = [0u8; 64];

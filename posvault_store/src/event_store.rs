@@ -63,7 +63,7 @@ impl EventStore for VctrlEventStore {
 
         let event_bytes =
             serde_json::to_vec(&event).map_err(|e| PosVaultError::Serialization(e.to_string()))?;
-        let event_hash = Sha512Hasher.hash(&event_bytes)?;
+        let event_hash = Sha512Hasher.hash(event_bytes.as_slice())?;
         store.put(&event_hash, &event_bytes)?;
 
         let head_commit_hash = store
@@ -75,7 +75,7 @@ impl EventStore for VctrlEventStore {
         let mut root_entries: Vec<TreeEntry> = root_tree.entries().to_vec();
 
         let cp_bytes = serialize_counter(new_counter);
-        let cp_hash = Sha512Hasher.hash(&cp_bytes)?;
+        let cp_hash = Sha512Hasher.hash(cp_bytes.as_slice())?;
         store.put(&cp_hash, &cp_bytes)?;
         root_entries.retain(|e| e.name() != "checkpoint");
         root_entries.push(TreeEntry::new(
@@ -100,8 +100,9 @@ impl EventStore for VctrlEventStore {
         bucket_entries.sort_by(|a, b| a.name().cmp(b.name()));
         bucket_tree = Tree::new(bucket_entries)?;
 
-        let bucket_bytes = BinaryEncoder.encode_tree(&bucket_tree)?;
-        let bucket_hash = Sha512Hasher.hash(&bucket_bytes)?;
+        let mut bucket_bytes = Vec::new();
+        BinaryEncoder.encode_tree(&bucket_tree, &mut bucket_bytes)?;
+        let bucket_hash = Sha512Hasher.hash(bucket_bytes.as_slice())?;
         store.put(&bucket_hash, &bucket_bytes)?;
 
         root_entries.retain(|e| e.name() != bucket_name);
@@ -109,8 +110,9 @@ impl EventStore for VctrlEventStore {
         root_entries.sort_by(|a, b| a.name().cmp(b.name()));
 
         let new_root_tree = Tree::new(root_entries)?;
-        let new_tree_bytes = BinaryEncoder.encode_tree(&new_root_tree)?;
-        let new_tree_hash = Sha512Hasher.hash(&new_tree_bytes)?;
+        let mut new_tree_bytes = Vec::new();
+        BinaryEncoder.encode_tree(&new_root_tree, &mut new_tree_bytes)?;
+        let new_tree_hash = Sha512Hasher.hash(new_tree_bytes.as_slice())?;
         store.put(&new_tree_hash, &new_tree_bytes)?;
 
         let author = UserID::new(
@@ -127,9 +129,10 @@ impl EventStore for VctrlEventStore {
             author.clone(),
             author,
             format!("append event #{}", new_counter),
-        );
-        let commit_bytes = BinaryEncoder.encode_commit(&commit)?;
-        let commit_hash = Sha512Hasher.hash(&commit_bytes)?;
+        )?;
+        let mut commit_bytes = Vec::new();
+        BinaryEncoder.encode_commit(&commit, &mut commit_bytes)?;
+        let commit_hash = Sha512Hasher.hash(commit_bytes.as_slice())?;
         store.put(&commit_hash, &commit_bytes)?;
         store.set_ref("refs/heads/main", &commit_hash)?;
         store.set_head("refs/heads/main")?;

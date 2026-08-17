@@ -1,0 +1,316 @@
+[
+  {
+    "title": "Design DiskStore trait and API",
+    "body": "## Goal\nDefine the traits and error types for disk-based object storage.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `DiskObjectStore` trait or concrete struct API\n- `DiskRefStore` API\n- Error variants for disk I/O, corruption, and consistency.\n\n## Acceptance Criteria\n- API is documented and compiles.\n- No implementation is required in this task.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement DiskObjectStore with file-backed storage",
+    "body": "## Goal\nStore objects on disk using their hash as filename or directory path.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `DiskObjectStore` struct\n- Implement `ObjectStore` trait\n- Atomic write, read, delete, exists\n- Directory layout: `<base>/objects/xx/yyyy...`\n\n## Acceptance Criteria\n- Objects survive process restart.\n- `put` then `get` returns exact bytes.\n- `exists` and `delete` behave correctly.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement DiskRefStore with file-backed refs",
+    "body": "## Goal\nStore named references (branches, tags, HEAD) on disk.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `DiskRefStore` struct\n- Implement `RefStore` trait\n- Use separate files for each ref under `<base>/refs/`\n\n## Acceptance Criteria\n- Refs survive restart.\n- `set_ref`, `get_ref`, `delete_ref` and `list_refs` work.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Integrate DiskObjectStore and DiskRefStore into FileStore",
+    "body": "## Goal\nReplace in-memory stores with disk stores in `FileStore`.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `FileStore` uses `DiskObjectStore` and `DiskRefStore`\n- Keep existing public API of `FileStore` unchanged\n- Add open/close semantics with path.\n\n## Acceptance Criteria\n- `PosVault::open(path)` persists data after restart.\n- All existing store tests pass with disk backend.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Design snapshot trigger policy",
+    "body": "## Goal\nDetermine when snapshots should be taken automatically.\n\n## Module\n`posvault_query`, `posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- Define threshold `SNAPSHOT_INTERVAL`\n- Define trigger condition: number of events since last snapshot.\n\n## Acceptance Criteria\n- Policy is documented and constants are defined.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_query",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement automatic snapshot creation in QueryEngine",
+    "body": "## Goal\nCreate snapshots without manual invocation.\n\n## Module\n`posvault_query`\n\n## Type\nfeature\n\n## Deliverables\n- After each `get_events_since`, check threshold\n- If exceeded, call `save_snapshot`\n- Update cache.\n\n## Acceptance Criteria\n- Snapshots are created automatically after enough events.\n- Subsequent queries use the latest snapshot.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_query",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Enforce session validation on every guarded operation",
+    "body": "## Goal\nPrevent expired sessions from performing any action.\n\n## Module\n`posvault_auth`\n\n## Type\nfeature\n\n## Deliverables\n- `require_role` checks `session.is_expired()`\n- `PosVault` checks session before `transact`, `journal`, `query`, `sync`\n\n## Acceptance Criteria\n- Expired session is rejected with `Auth` error.\n- Valid session passes.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_auth",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Add session refresh and absolute TTL",
+    "body": "## Goal\nAllow session extension and hard expiry.\n\n## Module\n`posvault_auth`\n\n## Type\nfeature\n\n## Deliverables\n- `Session::refresh()` resets expiration but not absolute TTL\n- Add `absolute_expiry` field if needed.\n\n## Acceptance Criteria\n- Refresh works correctly.\n- Session cannot be extended beyond absolute limit.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_auth",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Require recipients for event payload encryption",
+    "body": "## Goal\nPrevent plaintext events from entering storage.\n\n## Module\n`posvault`, `posvault_crypto`\n\n## Type\nfeature\n\n## Deliverables\n- `PosVault::transact` returns error if recipients empty.\n- Error variant `Encryption` with clear message.\n\n## Acceptance Criteria\n- `transact` without recipients fails.\n- `transact` with recipients encrypts payload.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Add convenience API for default recipients",
+    "body": "## Goal\nSimplify setting recipients at vault level.\n\n## Module\n`posvault`\n\n## Type\nfeature\n\n## Deliverables\n- `set_recipients` and `with_recipients` builder-style.\n\n## Acceptance Criteria\n- Users can set recipients once and use them for all transactions.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Require signer for event and journal mutations",
+    "body": "## Goal\nEnsure every mutation is signed.\n\n## Module\n`posvault`, `posvault_sign`\n\n## Type\nfeature\n\n## Deliverables\n- `PosVault::transact` and `journal` error if no signer set.\n- Error variant `Auth` or `Encryption`.\n\n## Acceptance Criteria\n- Unsigned mutations are rejected.\n- Signed mutations are stored with valid signature.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Enable strict signature verification on read",
+    "body": "## Goal\nPrevent tampered data from being returned.\n\n## Module\n`posvault_sign`\n\n## Type\nfeature\n\n## Deliverables\n- Default to strict mode in `SignedEventStore` and `SignedJournal`.\n- Return error on verification failure.\n\n## Acceptance Criteria\n- Tampered event or journal entry is rejected.\n- Valid entries pass.\n\n## Priority\nCritical",
+    "labels": [
+      "priority: critical",
+      "phase1",
+      "module: posvault_sign",
+      "type: feature"
+    ],
+    "milestone": "Phase 1 - Foundation (MVP)",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Define role permission matrix",
+    "body": "## Goal\nDocument which roles can perform which operations.\n\n## Module\n`posvault_auth`\n\n## Type\ndocs\n\n## Deliverables\n- Permission table in README or docs\n- Code constants for permissions.\n\n## Acceptance Criteria\n- Clear matrix exists.\n- All operations mapped.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_auth",
+      "type: docs"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement `require_role` in PosVault facade",
+    "body": "## Goal\nEnforce RBAC at high-level API.\n\n## Module\n`posvault`\n\n## Type\nfeature\n\n## Deliverables\n- Add role checks to `transact`, `journal`, `sync_to_remote`, `query_engine`.\n\n## Acceptance Criteria\n- Unauthorized role receives error.\n- Authorized role succeeds.\n\n## Priority\nHigh",
+    "labels": ["priority: high", "phase2", "module: posvault", "type: feature"],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Ensure Journal API has no update/delete methods",
+    "body": "## Goal\nGuarantee journal immutability.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- Review `Journal` trait and implementations\n- Remove or hide any mutation methods.\n\n## Acceptance Criteria\n- No public delete/update for journal entries.\n- Compiler rejects attempts to modify.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Encrypt private key storage",
+    "body": "## Goal\nNever store private keys in plaintext.\n\n## Module\n`posvault_crypto`, `posvault_auth`\n\n## Type\nfeature\n\n## Deliverables\n- Use `age` passphrase encryption for private keys.\n- Store encrypted key and metadata.\n\n## Acceptance Criteria\n- Private key file is encrypted.\n- Decryption with passphrase recovers key.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_crypto",
+      "type: feature"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Add key recovery API",
+    "body": "## Goal\nAllow recover if passphrase known.\n\n## Module\n`posvault_auth`\n\n## Type\nfeature\n\n## Deliverables\n- `recover_key(passphrase)` function.\n- Integration with login backend.\n\n## Acceptance Criteria\n- Correct passphrase recovers key.\n- Wrong passphrase fails.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_auth",
+      "type: feature"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement event tamper detection tests",
+    "body": "## Goal\nProve modified data is rejected.\n\n## Module\n`posvault_sign`\n\n## Type\ntest\n\n## Deliverables\n- Tests that mutate payload/signature and expect verification failure.\n\n## Acceptance Criteria\n- Tests pass and demonstrate detection.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_sign",
+      "type: test"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement 3-way merge algorithm for tree sync",
+    "body": "## Goal\nMerge two divergent histories without conflict.\n\n## Module\n`posvault_sync`\n\n## Type\nfeature\n\n## Deliverables\n- Find common ancestor (base)\n- Compare trees base/ours/theirs\n- If no overlapping changes, merge simply.\n\n## Acceptance Criteria\n- Non-conflicting trees merge correctly.\n- Conflicts produce descriptive error.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_sync",
+      "type: feature"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Integrate conflict resolver into FileTransport",
+    "body": "## Goal\nUse resolver during pull/push.\n\n## Module\n`posvault_sync`\n\n## Type\nfeature\n\n## Deliverables\n- `pull` invokes resolver if both sides changed.\n- Return merged result or error.\n\n## Acceptance Criteria\n- Pull works with non-conflicting changes.\n- Conflict error is returned.\n\n## Priority\nHigh",
+    "labels": [
+      "priority: high",
+      "phase2",
+      "module: posvault_sync",
+      "type: feature"
+    ],
+    "milestone": "Phase 2 - Security & Audit",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Use active branch in PosVault::transact",
+    "body": "## Goal\nTransactions should target current branch.\n\n## Module\n`posvault`\n\n## Type\nfeature\n\n## Deliverables\n- `transact` reads active branch from FileStore HEAD.\n- Commits appended to that branch.\n\n## Acceptance Criteria\n- After checkout, events go to new branch.\n- Main branch unaffected.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement update_stock function",
+    "body": "## Goal\nChange stock quantity via events.\n\n## Module\n`posvault_query`\n\n## Type\nfeature\n\n## Deliverables\n- `update_stock(item, delta)` creates event.\n- Validate non-negative stock.\n\n## Acceptance Criteria\n- Stock updated and persisted.\n- Negative stock rejected.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault_query",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement stock_history query",
+    "body": "## Goal\nRetrieve all changes for an item.\n\n## Module\n`posvault_query`\n\n## Type\nfeature\n\n## Deliverables\n- `stock_history(item) -> Vec<(timestamp, delta)>`\n- Uses event store checkpoint.\n\n## Acceptance Criteria\n- History correct and ordered.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault_query",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement daily_sales reporting",
+    "body": "## Goal\nReport total sales per day.\n\n## Module\n`posvault_query`\n\n## Type\nfeature\n\n## Deliverables\n- `daily_sales(date) -> Result<u64>`\n- Aggregate event payloads.\n\n## Acceptance Criteria\n- Total matches sum of events for date.\n- Error if date not found.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault_query",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement store export functionality",
+    "body": "## Goal\nExport whole vault to archive/file.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `export(dest_path)` copies all objects and refs.\n- Deterministic output.\n\n## Acceptance Criteria\n- Export is complete.\n- Can be imported without loss.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement store import and restore",
+    "body": "## Goal\nRestore from export.\n\n## Module\n`posvault_store`\n\n## Type\nfeature\n\n## Deliverables\n- `import(src_path)` loads objects and refs.\n- Verify integrity after restore.\n\n## Acceptance Criteria\n- Restored store hashes match original.\n\n## Priority\nMedium",
+    "labels": [
+      "priority: medium",
+      "phase3",
+      "module: posvault_store",
+      "type: feature"
+    ],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  },
+  {
+    "title": "Implement basic CLI with clap",
+    "body": "## Goal\nProvide manual testing and demo commands.\n\n## Module\nroot crate\n\n## Type\nfeature\n\n## Deliverables\n- Subcommands: `init`, `login`, `add-event`, `list-events`, `sync`.\n- Use existing PosVault facade.\n\n## Acceptance Criteria\n- CLI runs successfully.\n- Output is informative.\n\n## Priority\nLow",
+    "labels": ["priority: low", "phase3", "module: posvault", "type: feature"],
+    "milestone": "Phase 3 - POS Operational",
+    "repository": "mroczect/posvault"
+  }
+]
